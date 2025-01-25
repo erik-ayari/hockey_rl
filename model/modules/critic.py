@@ -11,7 +11,7 @@ class Critic(nn.Module):
         num_layers: int,
         hidden_dim: int
     ):
-        super(Actor, self).__init__()
+        super(Critic, self).__init__()
 
         # Twin Network:
         self.critic1 = self._init_twin(

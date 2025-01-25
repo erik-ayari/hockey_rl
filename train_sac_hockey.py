@@ -1,3 +1,4 @@
+import argparse
 import numpy as np
 import gymnasium as gym
 
@@ -16,8 +17,7 @@ def make_env(weak_opponent=True, verbose=False):
         return env
     return _init
 
-
-def main():
+def train_sac_agent(weak_opponent):
     """
     Train a SAC agent against the built-in BasicOpponent in the hockey environment.
     """
@@ -64,6 +64,19 @@ def main():
     env.close()
     eval_env.close()
 
+def main():
+    parser = argparse.ArgumentParser(description="Train an SAC agent on HockeyEnv.")
+    parser.add_argument("--opponent", type=str, default="weak",
+                        choices=["weak", "strong"],
+                        help="Opponent type: 'weak' or 'strong'.")
+    args = parser.parse_args()
+    if args.opponent == "weak":
+        weak_opponent = True
+    elif args.opponent == "strong":
+        weak_opponent = False
+    else:
+        raise ValueError("Invalid Opponent")
+    train_sac_agent(weak_opponent=weak_opponent)
 
 if __name__ == "__main__":
     main()

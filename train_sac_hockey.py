@@ -24,7 +24,7 @@ def train_sac_agent(weak_opponent):
 
     # Create a vectorized environment using DummyVecEnv 
     # (Stable-Baselines3 requires a VecEnv for most algorithms).
-    env = DummyVecEnv([make_env(weak_opponent=True)])  # optionally use weak_opponent=False
+    env = DummyVecEnv([make_env(weak_opponent=weak_opponent)])  # optionally use weak_opponent=False
 
     # Initialize the SAC model
     model = SAC(

@@ -2,7 +2,7 @@
     "environment": {
         "type": "Hockey_BasicOpponent",
         "kwargs": {
-            "weak_opponent": true
+            "weak_opponent": false
         }
     },
     "model": {
@@ -36,6 +36,6 @@
     },
     "logger": {
         "save_dir": "logs",
-        "name": "sac_hockey_weak"
+        "name": "sac_hockey_strong"
     }
 }

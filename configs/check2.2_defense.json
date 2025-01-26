@@ -1,8 +1,8 @@
 {
     "environment": {
-        "type": "Hockey_BasicOpponent",
+        "type": "Hockey",
         "kwargs": {
-            "weak_opponent": true
+            "mode": 1
         }
     },
     "model": {
@@ -36,6 +36,6 @@
     },
     "logger": {
         "save_dir": "logs",
-        "name": "sac_hockey_weak"
+        "name": "sac_hockey_train_defense"
     }
 }

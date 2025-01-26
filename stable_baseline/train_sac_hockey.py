@@ -41,6 +41,9 @@ def train_sac_agent(weak_opponent):
         # etc.
     )
 
+    print(model.policy)
+    exit()
+
     # Train the agent
     total_timesteps = 500_000
     model.learn(total_timesteps=total_timesteps)

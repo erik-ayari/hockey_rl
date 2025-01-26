@@ -1,15 +1,15 @@
 {
     "environment": {
-        "type": "hockey",
+        "type": "Pendulum-v1",
         "kwargs": {
-            "weak_opponent": true
+            
         }
     },
     "model": {
         "batch_size": 256,
         "replay_size": 1000000,
         "start_steps": 100,
-        "val_episodes": 20,
+        "validation_length": 20,
         "gamma": 0.99,
         "actor": {
             "num_layers": 1,
@@ -36,6 +36,6 @@
     },
     "logger": {
         "save_dir": "tb_logs",
-        "name": "soft_actor_critic"
+        "name": "sac_pendulum"
     }
 }

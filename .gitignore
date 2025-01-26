@@ -106,3 +106,4 @@ venv.bak/
 *.zip
 
 lightning_logs
+tb_logs

@@ -7,6 +7,7 @@ from dataclasses import asdict
 from hockey.hockey_env import HockeyEnv_BasicOpponent
 from .lightning import SoftActorCritic
 
+import gymnasium as gym
 import pytorch_lightning as pl
 from pytorch_lightning.loggers import TensorBoardLogger
 
@@ -21,11 +22,12 @@ def create_environment(env_config: dict):
     # Additional keyword arguments (e.g. whether to use weak opponent)
     kwargs = env_config.get('kwargs', {})
 
+    # Returns additional bool to indicate whether validation is win rate or reward
     if env_type.lower() == 'hockey':
-        return HockeyEnv_BasicOpponent(**kwargs)
+        return HockeyEnv_BasicOpponent(**kwargs), True
     else:
         try:
-            return gym.make(env_type, **kwargs)
+            return gym.make(env_type, **kwargs), False
         except gym.error.Error as e:
             raise ValueError(f"Failed to create environment '{env_type}': {e}")
 
@@ -35,7 +37,6 @@ def main():
         '--config',
         '-c',
         type=str,
-        default='configs/basic.json',
         help='Path to the JSON configuration file. (Usually "configs/...json")'
     )
     args = parser.parse_args()
@@ -43,9 +44,10 @@ def main():
     # Load configuration
     config = load_config(args.config)
 
-    # Initialize environment
+    # Initialize environment, and validation type
     env_config = config.get('environment', {})
-    env = create_environment(env_config)
+    env, game_validation = create_environment(env_config)
+    config["model"]["game_validation"] = game_validation
     
     # Initialize model with hyperparameters from config
     model = SoftActorCritic(env, config["model"])

@@ -4,6 +4,8 @@ from data import Experience, ReplayBuffer, RLDataset
 from typing import Tuple, OrderedDict, List, Union
 from math import prod
 
+import numpy as np
+
 import torch
 import torch.nn.functional as F
 from torch import Tensor, nn
@@ -79,7 +81,8 @@ class SoftActorCritic(pl.LightningModule):
 
         # Technically training, not model parameters, but for simplicity:
         self.batch_size = model_config.get('batch_size', 256)
-        self.val_episodes = model_config.get('val_episodes', 20)
+        self.game_validation = model_config.get('game_validation', True)
+        self.validation_length = model_config.get('validation_length', 20)
 
         # Replay Buffer
         self.buffer = ReplayBuffer(model_config.get('replay_size', 1_000_000))
@@ -106,7 +109,10 @@ class SoftActorCritic(pl.LightningModule):
                 with torch.no_grad():
                     action = self.actor.forward(state_tensor)[0][0].detach().numpy()
             # Collect consequences
-            next_state, reward, done, _, _ = self.env.step(action)
+            next_state, reward, done, truncated, _ = self.env.step(action)
+
+            # We consider truncated to be also done
+            done = done or truncated
 
             # Append to buffer
             experience = Experience(self.state, action, reward, done, next_state)
@@ -187,30 +193,52 @@ class SoftActorCritic(pl.LightningModule):
         self.critic_target.soft_update(self.critic)
 
     def validation_step(self, batch: Tuple[Tensor, Tensor], nb_batch) -> OrderedDict:
+        # Track Wins and Draws in case of game
         num_wins = 0
-        num_stales = 0
-        for episode in range(self.val_episodes):
+        num_draws = 0
+        # Track average cumulative reward otherwise
+        cumulative_rewards = []
+        
+        for episode in range(self.validation_length):
             state, _ = self.env.reset()
+            # Track reward if no game validation
+            cumulative_reward = 0.0
             done = False
             while not done:
                 state_tensor = torch.tensor(state, dtype=torch.float).unsqueeze(0)
                 with torch.no_grad():
+                    # For validation we consider the actor's predicted mode as its action
                     action = self.actor.forward(state_tensor, deterministic=True)[0].numpy()
 
-                next_state, reward, done, _, info = self.env.step(action)
+                next_state, reward, done, truncated, info = self.env.step(action)
 
+                if not self.game_validation:
+                    cumulative_reward += reward
+
+                # Again, we consider timeouts as done
+                done = done or truncated
+
+                # If done, track statistic
                 if done:
-                    if info['winner'] == 1:
-                        num_wins += 1
-                    elif info['winner'] == 0:
-                        num_stales += 1
+                    # In case of game, track winner
+                    if self.game_validation:
+                        if info['winner'] == 1:
+                            num_wins += 1
+                        elif info['winner'] == 0:
+                            num_draws += 1
+                    # Otherwise track cum. reward
+                    else:
+                        cumulative_rewards.append(cumulative_reward)
                 state = next_state.copy()
         
-        win_rate = num_wins / self.val_episodes
-        stale_rate = num_stales / self.val_episodes
+        if self.game_validation:
+            win_rate = num_wins / self.validation_length
+            draw_rate = num_draws / self.validation_length
 
-        self.log("val_win_rate", win_rate, prog_bar=True)
-        self.log("val_stale_rate", stale_rate, prog_bar=True)
+            self.log("val_win_rate", win_rate, prog_bar=True)
+            self.log("val_draw_rate", draw_rate, prog_bar=True)
+        else:
+            self.log("val_cumulative_reward", np.array(cumulative_rewards).mean(), prog_bar=True)
 
         self.done = True
 

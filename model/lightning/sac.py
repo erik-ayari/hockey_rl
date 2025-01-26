@@ -2,6 +2,7 @@ from model.modules import Actor, Critic
 from data import Experience, ReplayBuffer, RLDataset
 
 from typing import Tuple, OrderedDict, List, Union
+from math import prod
 
 import torch
 import torch.nn.functional as F
@@ -12,84 +13,77 @@ from torch.utils.data import DataLoader
 import pytorch_lightning as pl
 
 class SoftActorCritic(pl.LightningModule):
-    def __init__(
-        self,
-        # Environment Related Parameters
-        env,
-        gamma               : float = 0.99,
-        # Network Architecture
-        #  Actor
-        actor_num_layers    : int = 1,
-        actor_hidden_dim    : int = 256,
-        #  Critic
-        critic_num_layers   : int = 1,
-        critic_hidden_dim   : int = 256,
-        # Optimizer Parameters
-        actor_lr            : float = 3e-4,
-        critic_lr           : float = 3e-4,
-        alpha_lr            : float = 3e-4,
-        tau                 : float = 0.005,
-        # Training Procedure
-        batch_size          : int   = 256,
-        replay_size         : float = 1_000_000,
-        start_steps         : int   = 100,
-        # Validation Procedure
-        val_episodes        : int = 20
-    ):
+    def __init__(self, env, model_config: dict):
         super(SoftActorCritic, self).__init__()
 
-        self.save_hyperparameters()
+        self.save_hyperparameters(model_config)
 
         # No Automatic Optimization because we have separate Optimizers for Actor, Critic, Alpha
         self.automatic_optimization = False
 
-        # Environment related parameters
-        self.env = env
-        self.state_space = self.env.observation_space
-        self.action_space = self.env.action_space
-        self.gamma = gamma
+        # Environment parameters
+        self.env            = env
+        self.action_space   = env.action_space
+        self.state_dim      = prod(env.observation_space.shape)
+        self.action_dim     = prod(env.action_space.shape)
+        self.gamma          = model_config.get('gamma', 0.99)
 
-        # Training Procedure Parameters
-        self.tau = tau
-        self.batch_size = batch_size
-
-        # Validation Procedure Parameters
-        self.val_episodes = val_episodes
-
-        # Actor
+        # Actor hyperparameters
+        actor_config            = model_config.get('actor', {})
+        self.actor_num_layers   = actor_config.get('num_layers', 1)
+        self.actor_hidden_dim   = actor_config.get('hidden_dim', 256)
+        self.actor_lr           = actor_config.get('lr', 3e-4)
         self.actor = Actor(
-            self.state_space,
-            self.action_space,
-            actor_num_layers,
-            actor_hidden_dim
+            state_dim   = self.state_dim,
+            action_dim  = self.action_dim,
+            num_layers  = self.actor_num_layers,
+            hidden_dim  = self.actor_hidden_dim
         )
-        self.actor_lr = actor_lr
 
-        # Twin Critis
+        # Critic hyperparameters
+        critic_config = model_config.get('critic', {})
+        self.critic_num_layers = critic_config.get('num_layers', 1)
+        self.critic_hidden_dim = critic_config.get('hidden_dim', 256)
+        self.critic_lr = critic_config.get('lr', 3e-4)
+        self.critic_tau = critic_config.get('tau', 0.005)
+        # Twin Critics:
         self.critic = Critic(
-            self.state_space,
-            self.action_space,
-            critic_num_layers,
-            critic_hidden_dim
+            state_dim   = self.state_dim,
+            action_dim  = self.action_dim,
+            num_layers  = self.critic_num_layers,
+            hidden_dim  = self.critic_hidden_dim
         )
-        self.critic_lr = critic_lr
 
-        # Twin Critic Targets (initialized to the same parameters)
+        # Target Critics
         self.critic_target = Critic(
-            self.state_space,
-            self.action_space,
-            critic_num_layers,
-            critic_hidden_dim
+            state_dim   = self.state_dim,
+            action_dim  = self.action_dim,
+            num_layers  = self.critic_num_layers,
+            hidden_dim  = self.critic_hidden_dim,
+            tau         = self.critic_tau
         )
+        # Initialize to the critics parameters
         self.critic_target.load_state_dict(self.critic.state_dict())
 
-        # Entropy Coefficient (learned)
-        self.log_alpha = nn.Parameter(torch.ones(1, requires_grad=True))
-        self.alpha_lr = alpha_lr
-        self.target_entropy = -self.action_space.shape[0]
+        # Alpha Hyperparameters
+        alpha_config = model_config.get('alpha', {})
+        self.alpha_lr = alpha_config.get('lr', 3e-4)
+        # Entropy Coefficient initialized
+        initial_log_alpha = alpha_config.get('log_init', 1)
+        self.log_alpha = nn.Parameter(torch.ones(initial_log_alpha, requires_grad=True))
+
+        # If no target entropy is set, default to original paper's heuristic
+        self.target_entropy = model_config.get('target_entropy', -self.action_dim)
+        if self.target_entropy == None:
+            self.target_entropy = -self.action_dim
+
+        # Technically training, not model parameters, but for simplicity:
+        self.batch_size = model_config.get('batch_size', 256)
+        self.val_episodes = model_config.get('val_episodes', 20)
 
         # Replay Buffer
-        self.buffer = ReplayBuffer(replay_size)
+        self.buffer = ReplayBuffer(model_config.get('replay_size', 1_000_000))
+        start_steps = model_config.get('start_steps', 100)
 
         # Global variable that determines whether the populate function needs to reset the environment
         self.done = True
@@ -189,11 +183,8 @@ class SoftActorCritic(pl.LightningModule):
         actor_loss.backward()
         self.optimizers()[0].step()
 
-        # Update Target Network
-        with torch.no_grad():
-            for param, target_param in zip(self.critic.parameters(), self.critic_target.parameters()):
-                target_param.data.mul_(1 - self.tau)
-                torch.add(target_param.data, param.data, alpha=self.tau, out=target_param.data)
+        # Soft Update the Critic Target
+        self.critic_target.soft_update(self.critic)
 
     def validation_step(self, batch: Tuple[Tensor, Tensor], nb_batch) -> OrderedDict:
         num_wins = 0

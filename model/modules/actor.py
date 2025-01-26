@@ -2,13 +2,11 @@ import torch
 from torch import nn
 from torch.distributions import Normal
 
-from gymnasium import spaces
-
 class Actor(nn.Module):
     def __init__(
         self,
-        state_space: spaces.Space,
-        action_space: spaces.Box,
+        state_dim: int,
+        action_dim: int,
         num_layers: int,
         hidden_dim: int,
         epsilon: float = 1e-6
@@ -19,7 +17,8 @@ class Actor(nn.Module):
 
         # Observation -> Latent State Space
         layers = [
-            nn.Linear(in_features=state_space.shape[0], out_features=hidden_dim),
+            nn.Flatten(),
+            nn.Linear(in_features=state_dim, out_features=hidden_dim),
             nn.ReLU()
         ]
 
@@ -31,8 +30,8 @@ class Actor(nn.Module):
 
 
         # Latent State Space -> Action Space as Diagonal Normal
-        self.actor_mu = nn.Linear(in_features=hidden_dim, out_features=action_space.shape[0])
-        self.actor_log_std = nn.Linear(in_features=hidden_dim, out_features=action_space.shape[0])
+        self.actor_mu = nn.Linear(in_features=hidden_dim, out_features=action_dim)
+        self.actor_log_std = nn.Linear(in_features=hidden_dim, out_features=action_dim)
 
     def _sample(self, mu, log_std):
         normal_dist = Normal(mu, log_std.exp())

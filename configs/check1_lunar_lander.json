@@ -1,6 +1,6 @@
 {
     "environment": {
-        "type": "LunarLander-v2",
+        "type": "LunarLander-v3",
         "kwargs": {
             "continuous": true
         }

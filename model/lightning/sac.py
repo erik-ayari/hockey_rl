@@ -53,6 +53,8 @@ class SoftActorCritic(pl.LightningModule):
         
         self.state_dim          = prod(env.observation_space.shape)
         self.action_dim         = prod(env.action_space.shape)
+        # Again, halve action_dim if action space should be splitted
+        self.action_dim = self.action_dim // 2 if self.split_action_space == SplitActionSpace.SPLIT else self.action_dim
         self.gamma              = model_config.get('gamma', 0.99)
 
         # Actor hyperparameters
@@ -132,8 +134,11 @@ class SoftActorCritic(pl.LightningModule):
                 state_tensor = torch.tensor(self.state, dtype=torch.float).unsqueeze(0)
                 with torch.no_grad():
                     action = self.actor.forward(state_tensor)[0][0].detach().numpy()
+
+            if self.split_action_space == SplitActionSpace.SPLIT:
+                action_step = np.concatenate((action, np.zeros_like(action)))
             # Collect consequences
-            next_state, reward, done, truncated, _ = self.env.step(action)
+            next_state, reward, done, truncated, _ = self.env.step(action_step)
 
             # We consider truncated to be also done
             done = done or truncated
@@ -234,7 +239,10 @@ class SoftActorCritic(pl.LightningModule):
                     # For validation we consider the actor's predicted mode as its action
                     action = self.actor.forward(state_tensor, deterministic=True)[0].numpy()
 
-                next_state, reward, done, truncated, info = self.env.step(action)
+                if self.split_action_space == SplitActionSpace.SPLIT:
+                    action_step = np.concatenate((action, np.zeros_like(action)))
+
+                next_state, reward, done, truncated, info = self.env.step(action_step)
 
                 if self.environment_type != EnvironmentType.GAME:
                     cumulative_reward += reward

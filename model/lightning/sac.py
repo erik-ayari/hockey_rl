@@ -138,7 +138,7 @@ class SoftActorCritic(pl.LightningModule):
         policy_actions, actions_log_probs = self.actor.forward(states)
 
         # Separate Batch Dimension
-        actions_probs = actions_log_probs.unsqueeze(1)
+        actions_log_probs = actions_log_probs.unsqueeze(1)
 
         # We will use this alpha in the calculation of the other losses, so that is not affected
         alpha = self.log_alpha.exp().detach()
@@ -161,7 +161,7 @@ class SoftActorCritic(pl.LightningModule):
             next_q_values = torch.cat(self.critic_target.forward(next_states, next_actions), dim=-1)
             next_q_values = torch.min(next_q_values, dim=1, keepdim=True)[0]
             # (Negative) Entropy Term weighted by alpha
-            next_q_values = next_q_values - alpha * next_actions_log_probs.reshape(-1, 1)
+            next_q_values = next_q_values - alpha * next_actions_log_probs.unsqueeze(1)
             # TD Error (only propagated to future states if we were not done)
             target_q_values = rewards.unsqueeze(1) + (1 - dones.unsqueeze(1)) * self.gamma * next_q_values
 

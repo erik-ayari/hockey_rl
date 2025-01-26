@@ -137,6 +137,8 @@ class SoftActorCritic(pl.LightningModule):
 
             if self.split_action_space == SplitActionSpace.SPLIT:
                 action_step = np.concatenate((action, np.zeros_like(action)))
+            else:
+                action_step = action.copy()
             # Collect consequences
             next_state, reward, done, truncated, _ = self.env.step(action_step)
 
@@ -241,6 +243,8 @@ class SoftActorCritic(pl.LightningModule):
 
                 if self.split_action_space == SplitActionSpace.SPLIT:
                     action_step = np.concatenate((action, np.zeros_like(action)))
+                else:
+                    action_step = action.copy()
 
                 next_state, reward, done, truncated, info = self.env.step(action_step)
 

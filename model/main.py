@@ -4,7 +4,7 @@ import argparse
 from math import prod
 from dataclasses import asdict
 
-from hockey.hockey_env import HockeyEnv_BasicOpponent
+from hockey.hockey_env import HockeyEnv, HockeyEnv_BasicOpponent
 from .lightning import SoftActorCritic
 
 import gymnasium as gym
@@ -23,7 +23,9 @@ def create_environment(env_config: dict):
     kwargs = env_config.get('kwargs', {})
 
     # Returns additional bool to indicate whether validation is win rate or reward
-    if env_type.lower() == 'hockey':
+    if env_type == 'Hockey':
+        return HockeyEnv(**kwargs), True
+    elif env_type == 'Hockey_BasicOpponent':
         return HockeyEnv_BasicOpponent(**kwargs), True
     else:
         try:

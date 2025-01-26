@@ -35,7 +35,7 @@
         "accelerator": "cpu"
     },
     "logger": {
-        "save_dir": "tb_logs",
+        "save_dir": "logs",
         "name": "sac_pendulum"
     }
 }

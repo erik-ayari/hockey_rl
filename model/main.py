@@ -4,6 +4,7 @@ import argparse
 from math import prod
 from dataclasses import asdict
 
+from utils import EnvironmentType, AgentType, SplitActionSpace
 from hockey.hockey_env import HockeyEnv, HockeyEnv_BasicOpponent
 from .lightning import SoftActorCritic
 
@@ -22,14 +23,17 @@ def create_environment(env_config: dict):
     # Additional keyword arguments (e.g. whether to use weak opponent)
     kwargs = env_config.get('kwargs', {})
 
-    # Returns additional bool to indicate whether validation is win rate or reward
     if env_type == 'Hockey':
-        return HockeyEnv(**kwargs), True
+        if kwargs["mode"] != 0:
+            split = SplitActionSpace.SPLIT
+        else:
+            split = SplitActionSpace.NO_SPLIT
+        return HockeyEnv(**kwargs), EnvironmentType.GAME, AgentType.MULTI_AGENT, split
     elif env_type == 'Hockey_BasicOpponent':
-        return HockeyEnv_BasicOpponent(**kwargs), True
+        return HockeyEnv_BasicOpponent(**kwargs), EnvironmentType.GAME, AgentType.SINGLE_AGENT, SplitActionSpace.NO_SPLIT
     else:
         try:
-            return gym.make(env_type, **kwargs), False
+            return gym.make(env_type, **kwargs), EnvironmentType.REGULAR, AgentType.SINGLE_AGENT, SplitActionSpace.NO_SPLIT
         except gym.error.Error as e:
             raise ValueError(f"Failed to create environment '{env_type}': {e}")
 
@@ -48,11 +52,16 @@ def main():
 
     # Initialize environment, and validation type
     env_config = config.get('environment', {})
-    env, game_validation = create_environment(env_config)
-    config["model"]["game_validation"] = game_validation
+    env, environment_type, agent_type, split_action_space = create_environment(env_config)
     
     # Initialize model with hyperparameters from config
-    model = SoftActorCritic(env, config["model"])
+    model = SoftActorCritic(
+        env,
+        environment_type,
+        agent_type,
+        split_action_space,
+        config["model"]
+    )
 
     # TensorBoard Logger
     logger = TensorBoardLogger(

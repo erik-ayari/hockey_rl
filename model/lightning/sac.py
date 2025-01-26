@@ -1,10 +1,12 @@
 from model.modules import Actor, Critic
 from data import Experience, ReplayBuffer, RLDataset
+from utils import EnvironmentType, AgentType, SplitActionSpace
 
 from typing import Tuple, OrderedDict, List, Union
 from math import prod
 
 import numpy as np
+import gymnasium as gym
 
 import torch
 import torch.nn.functional as F
@@ -15,7 +17,14 @@ from torch.utils.data import DataLoader
 import pytorch_lightning as pl
 
 class SoftActorCritic(pl.LightningModule):
-    def __init__(self, env, model_config: dict):
+    def __init__(
+        self,
+        env,
+        environment_type: EnvironmentType,
+        agent_type: AgentType,
+        split_action_space: SplitActionSpace,
+        model_config: dict
+    ):
         super(SoftActorCritic, self).__init__()
 
         self.save_hyperparameters(model_config)
@@ -24,11 +33,27 @@ class SoftActorCritic(pl.LightningModule):
         self.automatic_optimization = False
 
         # Environment parameters
-        self.env            = env
-        self.action_space   = env.action_space
-        self.state_dim      = prod(env.observation_space.shape)
-        self.action_dim     = prod(env.action_space.shape)
-        self.gamma          = model_config.get('gamma', 0.99)
+        self.env                = env
+        self.environment_type   = environment_type
+        self.agent_type         = agent_type
+        self.split_action_space = split_action_space
+        # Split action space if we actually only use the first half (like in checkpoint 2)
+        if self.split_action_space == SplitActionSpace.SPLIT:
+            # Calculate the midpoint
+            midpoint = env.action_space.shape[0] // 2
+
+            # Slice the minima and maxima
+            low = env.action_space.low[:midpoint]
+            high = env.action_space.high[:midpoint]
+
+            # Define halved action space
+            self.action_space = gym.spaces.Box(low=low, high=high, dtype=env.action_space.dtype)
+        else:
+            self.action_space   = env.action_space
+        
+        self.state_dim          = prod(env.observation_space.shape)
+        self.action_dim         = prod(env.action_space.shape)
+        self.gamma              = model_config.get('gamma', 0.99)
 
         # Actor hyperparameters
         actor_config            = model_config.get('actor', {})
@@ -81,7 +106,6 @@ class SoftActorCritic(pl.LightningModule):
 
         # Technically training, not model parameters, but for simplicity:
         self.batch_size = model_config.get('batch_size', 256)
-        self.game_validation = model_config.get('game_validation', True)
         self.validation_length = model_config.get('validation_length', 20)
 
         # Replay Buffer
@@ -212,7 +236,7 @@ class SoftActorCritic(pl.LightningModule):
 
                 next_state, reward, done, truncated, info = self.env.step(action)
 
-                if not self.game_validation:
+                if self.environment_type != EnvironmentType.GAME:
                     cumulative_reward += reward
 
                 # Again, we consider timeouts as done
@@ -221,7 +245,7 @@ class SoftActorCritic(pl.LightningModule):
                 # If done, track statistic
                 if done:
                     # In case of game, track winner
-                    if self.game_validation:
+                    if self.environment_type == EnvironmentType.GAME:
                         if info['winner'] == 1:
                             num_wins += 1
                         elif info['winner'] == 0:
@@ -231,7 +255,7 @@ class SoftActorCritic(pl.LightningModule):
                         cumulative_rewards.append(cumulative_reward)
                 state = next_state.copy()
         
-        if self.game_validation:
+        if self.environment_type == EnvironmentType.GAME:
             win_rate = num_wins / self.validation_length
             draw_rate = num_draws / self.validation_length
 

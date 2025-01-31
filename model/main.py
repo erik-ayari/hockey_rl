@@ -70,14 +70,6 @@ def main():
     )
 
     trainer = pl.Trainer(
-        accelerator="cpu",
-        log_every_n_steps=1,
-        check_val_every_n_epoch=1_000,
-        max_epochs=500_000,
-        logger=logger
-    )
-
-    trainer = pl.Trainer(
         accelerator             = config["training"]["accelerator"],
         log_every_n_steps       = config["training"]["log_every_n_steps"],
         check_val_every_n_epoch = config["training"]["check_val_every_n_epoch"],

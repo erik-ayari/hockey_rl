@@ -1,0 +1,42 @@
+{
+    "environment": {
+        "type": "Hockey_BasicOpponent",
+        "kwargs": {
+            "weak_opponent": false
+        }
+    },
+    "model": {
+        "batch_size": 256,
+        "replay_size": 1000000,
+        "start_steps": 100,
+        "validation_length": 20,
+        "gamma": 0.99,
+        "actor": {
+            "num_layers": 1,
+            "hidden_dim": 256,
+            "lr": 0.0003
+        },
+        "critic": {
+            "num_layers": 1,
+            "hidden_dim": 256,
+            "lr": 0.0003,
+            "tau": 0.005
+        },
+        "alpha": {
+            "log_init": 1,
+            "lr": 0.0003
+        },
+        "target_entropy": null,
+        "opponent_observations": true
+    },
+    "training": {
+        "max_epochs": 1500000,
+        "log_every_n_steps": 1,
+        "check_val_every_n_epoch": 1000,
+        "accelerator": "cpu"
+    },
+    "logger": {
+        "save_dir": "logs",
+        "name": "sac_hockey_strong_collect"
+    }
+}

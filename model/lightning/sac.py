@@ -114,6 +114,8 @@ class SoftActorCritic(pl.LightningModule):
         self.buffer = ReplayBuffer(model_config.get('replay_size', 1_000_000))
         start_steps = model_config.get('start_steps', 100)
 
+        self.opponent_observations = model_config.get('opponent_observations', False)
+
         # Global variable that determines whether the populate function needs to reset the environment
         self.done = True
 
@@ -124,6 +126,9 @@ class SoftActorCritic(pl.LightningModule):
         # Reset Env
         if self.done:
             self.state, _ = self.env.reset()
+        # Get Opponent's Observation if specified
+        if self.opponent_observations:
+            self.state_opponent = self.env.obs_agent_two()
         for _ in range(steps):
             # Sample Action
             # Either randomly (to increase variance/diversity in dataset compared to using untrained agent)
@@ -140,7 +145,12 @@ class SoftActorCritic(pl.LightningModule):
             else:
                 action_step = action.copy()
             # Collect consequences
-            next_state, reward, done, truncated, _ = self.env.step(action_step)
+            next_state, reward, done, truncated, info = self.env.step(action_step)
+            # Collect consequences for opponent if specified
+            if self.opponent_observations:
+                action_opponent = info["action_player2"]
+                next_state_opponent = self.env.obs_agent_two()
+                reward_opponent = self.env.get_reward_agent_two(self.env.get_info_agent_two())
 
             # We consider truncated to be also done
             done = done or truncated
@@ -149,11 +159,19 @@ class SoftActorCritic(pl.LightningModule):
             experience = Experience(self.state, action, reward, done, next_state)
             self.buffer.append(experience)
 
+            # Append opponent obs to buffer
+            if self.opponent_observations:
+                experience_opponent = Experience(self.state_opponent, action_opponent, reward_opponent, done, next_state_opponent)
+
             # Reset if necessary, otherwise next state becomes initial state
             if done:
                 self.state, _ = self.env.reset()
+                if self.opponent_observations:
+                    self.state_opponent = self.env.obs_agent_two()
             else:
                 self.state = next_state.copy()
+                if self.opponent_observations:
+                    self.state_opponent = next_state_opponent.copy()
             
             self.done = done
 

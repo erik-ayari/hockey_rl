@@ -688,6 +688,10 @@ class HockeyEnv(gym.Env, EzPickle):
     self.closest_to_goal_dist = min(self.closest_to_goal_dist,
                                     dist_positions(self.puck.position, (W, H / 2)))
     self.time += 1
+
+    info["action_player1"] = action[:player2_idx]
+    info["action_player2"] = action[player2_idx:]
+
     # Todo: maybe use the truncation flag when the time runs out!
     return obs, reward, self.done, False, info
 

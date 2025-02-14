@@ -57,15 +57,14 @@ class Actor(nn.Module):
         latent = self.actor_latent(x)
 
         mu = self.actor_mu(latent)
-        
-        if deterministic:
-            return mu
 
         log_std = self.actor_log_std(latent).clamp(min=-20, max=2)
 
         action, log_prob = self._sample(mu, log_std)
 
         # Squash to [-1, 1]
+        if deterministic:
+            return self._squash(mu, log_prob)[0]
         action, log_prob = self._squash(action, log_prob)
 
         return action, log_prob

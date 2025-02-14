@@ -108,3 +108,5 @@ venv.bak/
 lightning_logs
 tb_logs
 logs
+
+*.ckpt

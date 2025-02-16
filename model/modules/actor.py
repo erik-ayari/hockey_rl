@@ -69,3 +69,8 @@ class Actor(nn.Module):
 
         return action, log_prob
 
+    def load_checkpoint(self, checkpoint_path):
+        checkpoint = torch.load(checkpoint_path, map_location="cpu")
+        state_dict = checkpoint["state_dict"]
+        actor_state_dict = {k.replace("actor.", ""): v for k, v in state_dict.items() if k.startswith("actor.")}
+        self.load_state_dict(actor_state_dict)

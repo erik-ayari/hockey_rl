@@ -16,11 +16,8 @@ class SACAgent(Agent):
     """A hockey agent that simply uses random actions."""
     def __init__(self, load_path : str):
         super().__init__()
-        checkpoint = torch.load(load_path, map_location="cpu")
-        state_dict = checkpoint["state_dict"]
         self.actor = Actor(state_dim=18, action_dim=4, num_layers=1, hidden_dim=256)
-        actor_state_dict = {k.replace("actor.", ""): v for k, v in state_dict.items() if k.startswith("actor.")}
-        self.actor.load_state_dict(actor_state_dict)
+        self.actor.load_checkpoint(load_path)
 
     def get_step(self, observation: list[float]) -> list[float]:
         observation = torch.tensor(observation).unsqueeze(0)

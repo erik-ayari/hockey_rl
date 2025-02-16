@@ -24,10 +24,7 @@ def create_environment(env_config: dict):
     kwargs = env_config.get('kwargs', {})
 
     if env_type == 'Hockey':
-        if kwargs["mode"] != 0:
-            split = SplitActionSpace.SPLIT
-        else:
-            split = SplitActionSpace.NO_SPLIT
+        split = SplitActionSpace.SPLIT
         return HockeyEnv(**kwargs), EnvironmentType.GAME, AgentType.MULTI_AGENT, split
     elif env_type == 'Hockey_BasicOpponent':
         return HockeyEnv_BasicOpponent(**kwargs), EnvironmentType.GAME, AgentType.SINGLE_AGENT, SplitActionSpace.NO_SPLIT

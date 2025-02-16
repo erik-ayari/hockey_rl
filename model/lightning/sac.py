@@ -139,7 +139,17 @@ class SoftActorCritic(pl.LightningModule):
             )
             self.snapshot_interval_steps = 0
             self.pool_games_per_opponent = pool_config["games_per_opponent"]
-            self.pool_checkpoints = pool_config["checkpoints"]
+
+            for checkpoint_path in pool_config["checkpoints"]:
+                checkpoint_path = f"{checkpoint_path}.ckpt"
+                snapshot = Actor(
+                    state_dim=self.state_dim,
+                    action_dim=self.action_dim,
+                    num_layers=self.actor_num_layers,
+                    hidden_dim=self.actor_hidden_dim
+                )
+                snapshot.load_checkpoint(checkpoint_path)
+                self.opponent_pool.add_snapshot(snapshot)
 
         # Warm Up Buffer
         self.populate(start_steps - 1, warm_up=True)
@@ -270,18 +280,6 @@ class SoftActorCritic(pl.LightningModule):
             self.snapshot_interval_steps += 1
             if self.snapshot_interval_steps % self.snapshot_interval == 0:
                 self.opponent_pool.add_snapshot(self.actor)
-
-            if self.snapshot_interval_steps == 1_000_000:
-                for checkpoint_path in self.pool_checkpoints:
-                    checkpoint_path = f"{checkpoint_path}.ckpt"
-                    snapshot = Actor(
-                        state_dim=self.state_dim,
-                        action_dim=self.action_dim,
-                        num_layers=self.actor_num_layers,
-                        hidden_dim=self.actor_hidden_dim
-                    )
-                    snapshot.load_checkpoint(checkpoint_path)
-                    self.opponent_pool.add_snapshot(snapshot)
 
     def regular_validation(self):
         # Track Wins and Draws in case of game

@@ -110,3 +110,6 @@ tb_logs
 logs
 
 *.ckpt
+
+*.out
+*.err

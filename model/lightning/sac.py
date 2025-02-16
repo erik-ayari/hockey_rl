@@ -1,5 +1,5 @@
 from model.modules import Actor, Critic
-from data import Experience, ReplayBuffer, RLDataset
+from data import Experience, ReplayBuffer, RLDataset, OpponentPool
 from utils import EnvironmentType, AgentType, SplitActionSpace
 
 from typing import Tuple, OrderedDict, List, Union
@@ -7,6 +7,8 @@ from math import prod
 
 import numpy as np
 import gymnasium as gym
+
+import trueskill
 
 import torch
 import torch.nn.functional as F
@@ -119,6 +121,26 @@ class SoftActorCritic(pl.LightningModule):
         # Global variable that determines whether the populate function needs to reset the environment
         self.done = True
 
+        pool_config = model_config.get('pool', None)
+        if pool_config == None:
+            self.use_pool = False
+        else:
+            self.use_pool           = pool_config["use_pool"]
+            self.pool_size          = pool_config["size"]
+            self.snapshot_interval  = pool_config["snapshot_interval"]
+            self.opponent_pool      = OpponentPool(
+                pool_size=self.pool_size,
+                actor_params = {
+                    "state_dim" : self.state_dim,
+                    "action_dim": self.action_dim,
+                    "num_layers": self.actor_num_layers,
+                    "hidden_dim": self.actor_hidden_dim
+                }
+            )
+            self.snapshot_interval_steps = 0
+            self.pool_games_per_opponent = pool_config["games_per_opponent"]
+            self.pool_checkpoints = pool_config["checkpoints"]
+
         # Warm Up Buffer
         self.populate(start_steps - 1, warm_up=True)
 
@@ -126,9 +148,10 @@ class SoftActorCritic(pl.LightningModule):
         # Reset Env
         if self.done:
             self.state, _ = self.env.reset()
-        # Get Opponent's Observation if specified
-        if self.opponent_observations:
-            self.state_opponent = self.env.obs_agent_two()
+            if self.use_pool:
+                self.opponent_pool.sample_opponent()
+        self.state_opponent = self.env.obs_agent_two()
+        # Pick opponent if pool is used
         for _ in range(steps):
             # Sample Action
             # Either randomly (to increase variance/diversity in dataset compared to using untrained agent)
@@ -140,17 +163,18 @@ class SoftActorCritic(pl.LightningModule):
                 with torch.no_grad():
                     action = self.actor.forward(state_tensor)[0][0].detach().numpy()
 
-            if self.split_action_space == SplitActionSpace.SPLIT:
+            if self.use_pool:
+                action_opponent = self.opponent_pool.act_opponent(self.state_opponent)
+                action_step = np.concatenate((action, action_opponent))
+            elif self.split_action_space == SplitActionSpace.SPLIT:
                 action_step = np.concatenate((action, np.zeros_like(action)))
             else:
                 action_step = action.copy()
             # Collect consequences
             next_state, reward, done, truncated, info = self.env.step(action_step)
-            # Collect consequences for opponent if specified
-            if self.opponent_observations:
-                action_opponent = info["action_player2"]
-                next_state_opponent = self.env.obs_agent_two()
-                reward_opponent = self.env.get_reward_agent_two(self.env.get_info_agent_two())
+            action_opponent = info["action_player2"]
+            next_state_opponent = self.env.obs_agent_two()
+            reward_opponent = self.env.get_reward_agent_two(self.env.get_info_agent_two())
 
             # We consider truncated to be also done
             done = done or truncated
@@ -166,12 +190,13 @@ class SoftActorCritic(pl.LightningModule):
             # Reset if necessary, otherwise next state becomes initial state
             if done:
                 self.state, _ = self.env.reset()
-                if self.opponent_observations:
-                    self.state_opponent = self.env.obs_agent_two()
+                self.state_opponent = self.env.obs_agent_two()
+                # Pick new opponent
+                if self.use_pool:
+                    self.opponent_pool.sample_opponent()
             else:
                 self.state = next_state.copy()
-                if self.opponent_observations:
-                    self.state_opponent = next_state_opponent.copy()
+                self.state_opponent = next_state_opponent.copy()
             
             self.done = done
 
@@ -194,7 +219,7 @@ class SoftActorCritic(pl.LightningModule):
 
         # Loss of Alpha
         alpha_loss = -(self.log_alpha * (actions_log_probs + self.target_entropy).detach()).mean()
-        self.log("alpha_loss", alpha_loss, prog_bar=True)
+        self.log("alpha_loss", alpha_loss, on_epoch=True)
 
         # Optimize Alpha
         self.optimizers()[2].zero_grad()
@@ -220,7 +245,7 @@ class SoftActorCritic(pl.LightningModule):
 
         # Critic Loss calculation
         critic_loss = 0.5 * sum(F.mse_loss(current_q, target_q_values) for current_q in current_q_values)
-        self.log("critic_loss", critic_loss, prog_bar=True)
+        self.log("critic_loss", critic_loss, on_epoch=True)
 
         # Optimize Critic
         self.optimizers()[1].zero_grad()
@@ -231,7 +256,7 @@ class SoftActorCritic(pl.LightningModule):
         policy_q_values = torch.cat(self.critic.forward(states, policy_actions), dim=1)
         policy_min_q = torch.min(policy_q_values, dim=1, keepdim=True)[0]
         actor_loss = (alpha * actions_log_probs - policy_min_q).mean()
-        self.log("actor_loss", actor_loss, prog_bar=True)
+        self.log("actor_loss", actor_loss, on_epoch=True)
 
         # Optimize Actor
         self.optimizers()[0].zero_grad()
@@ -241,7 +266,24 @@ class SoftActorCritic(pl.LightningModule):
         # Soft Update the Critic Target
         self.critic_target.soft_update(self.critic)
 
-    def validation_step(self, batch: Tuple[Tensor, Tensor], nb_batch) -> OrderedDict:
+        if self.use_pool:
+            self.snapshot_interval_steps += 1
+            if self.snapshot_interval_steps % self.snapshot_interval == 0:
+                self.opponent_pool.add_snapshot(self.actor)
+
+            if self.snapshot_interval_steps == 1_000_000:
+                for checkpoint_path in self.pool_checkpoints:
+                    checkpoint_path = f"{checkpoint_path}.ckpt"
+                    snapshot = Actor(
+                        state_dim=self.state_dim,
+                        action_dim=self.action_dim,
+                        num_layers=self.actor_num_layers,
+                        hidden_dim=self.actor_hidden_dim
+                    )
+                    snapshot.load_checkpoint(checkpoint_path)
+                    self.opponent_pool.add_snapshot(snapshot)
+
+    def regular_validation(self):
         # Track Wins and Draws in case of game
         num_wins = 0
         num_draws = 0
@@ -295,6 +337,68 @@ class SoftActorCritic(pl.LightningModule):
             self.log("val_cumulative_reward", np.array(cumulative_rewards).mean(), prog_bar=True)
 
         self.done = True
+
+    def play_1v1(self):
+        state, _ = self.env.reset()
+        state_opponent = self.env.obs_agent_two()
+        done = False
+
+        while not done:
+            state_tensor = torch.tensor(state, dtype=torch.float).unsqueeze(0)
+            with torch.no_grad():
+                action = self.actor.forward(state_tensor, deterministic=True)[0].numpy()
+                action_opponent = self.opponent_pool.act_opponent(state_opponent)
+
+                action_step = np.hstack((action, action_opponent))
+
+            state, _, done, truncated, info = self.env.step(action_step)
+
+            state_opponent = self.env.obs_agent_two()
+
+            done = (done or truncated)
+        
+        self.done = True
+        
+        return info['winner']
+
+    def tournament_validation(self):
+        opponent_ratings = {}
+        opponnent_mus = []
+        opponent_sigmas = []
+        model_rating = trueskill.Rating()
+        for opponent_idx in range(len(self.opponent_pool)):
+            opponent_rating = trueskill.Rating()
+            self.opponent_pool.set_opponent(opponent_idx)
+
+            for _ in range(self.pool_games_per_opponent):
+                outcome = self.play_1v1()
+                model_rating = self.opponent_pool.udpate_rating(model_rating, opponent_idx, outcome)
+
+            opponnent_mus.append(self.opponent_pool.get_rating(opponent_idx))
+            opponent_sigmas.append(self.opponent_pool.get_rating(opponent_idx, sigma=True))
+        
+        model_mu = model_rating.mu
+        model_sigma = model_rating.sigma
+        count = 0.0
+        for opp_mu in opponnent_mus:
+            if model_mu > opp_mu:
+                count += 1.0
+            elif model_mu == opp_mu:
+                count += 0.5  # Counting ties as half
+        percentile = count / len(opponnent_mus) if opponnent_mus else 0.0
+
+        self.log("val_percentile", percentile, prog_bar=True)
+        self.log("val_model_rating_mu", model_mu, prog_bar=True)
+        self.log("val_model_rating_sigma", model_sigma, prog_bar=True)
+
+        self.log("val_opp_mu", np.array(opponnent_mus).mean(), prog_bar=True)
+        self.log("val_opp_sigma", np.array(opponent_sigmas).mean(), prog_bar=True)
+
+    def validation_step(self, batch: Tuple[Tensor, Tensor], nb_batch) -> OrderedDict:
+        if self.use_pool:
+            self.tournament_validation()
+        else:
+            self.regular_validation()
 
     def train_dataloader(self) -> DataLoader:
         """Get train loader."""

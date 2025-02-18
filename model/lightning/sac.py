@@ -409,17 +409,26 @@ class SoftActorCritic(pl.LightningModule):
         draw_rate_weak      = draws_weak    / self.pool_games_per_opponent
         draw_rate_strong    = draws_strong  / self.pool_games_per_opponent
 
-        self.log("win_rate_weak", win_rate_weak)
-        self.log("win_rate_strong", win_rate_strong)
-        self.log("draw_rate_weak", draw_rate_weak)
-        self.log("draw_rate_strong", draw_rate_strong)
+        self.log("win_rate_weak",       win_rate_weak)
+        self.log("win_rate_strong",     win_rate_strong)
+        self.log("draw_rate_weak",      draw_rate_weak)
+        self.log("draw_rate_strong",    draw_rate_strong)
 
-        self.log("val_percentile", percentile, prog_bar=True)
-        self.log("val_model_rating_mu", model_mu, prog_bar=True)
-        self.log("val_model_rating_sigma", model_sigma, prog_bar=True)
+        self.log("val_percentile",          percentile, prog_bar=True)
+        self.log("val_model_rating_mu",     model_mu, prog_bar=True)
+        self.log("val_model_rating_sigma",  model_sigma, prog_bar=True)
 
-        self.log("val_opp_mu", np.array(opponnent_mus).mean(), prog_bar=True)
-        self.log("val_opp_sigma", np.array(opponent_sigmas).mean(), prog_bar=True)
+        opponnent_mus = np.array(opponnent_mus)
+        opponent_sigmas = np.array(opponent_sigmas)
+
+        self.log("val_opp_mu",          opponnent_mus.mean(), prog_bar=True)
+        self.log("val_opp_sigma",       opponent_sigmas.mean(), prog_bar=True)
+
+        self.log("val_weak-opp_mu",         opponnent_mus[0])
+        self.log("val_strong-opp_mu",       opponnent_mus[1])
+        self.log("val_weak-opp_sigma",      opponent_sigmas[0])
+        self.log("val_strong-opp_sigma",    opponent_sigmas[1])
+
         if len(opponnent_mus) > 2:
             self.log("val_self-opp_mu", np.array(opponnent_mus)[2:].mean(), prog_bar=True)
             self.log("val_self-opp_sigma", np.array(opponent_sigmas)[2:].mean(), prog_bar=True)

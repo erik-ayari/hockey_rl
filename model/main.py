@@ -73,7 +73,6 @@ def main():
         dirpath=f"{config['logger']['save_dir']}/{config['logger']['name']}",
         filename="{epoch}-{step}",
         save_top_k=-1,  # Save all checkpoints, do not delete previous ones
-        every_n_val_epochs=config["training"]["check_val_every_n_epoch"],
     )
 
     trainer = pl.Trainer(

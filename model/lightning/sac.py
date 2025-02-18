@@ -391,6 +391,8 @@ class SoftActorCritic(pl.LightningModule):
 
         self.log("val_opp_mu", np.array(opponnent_mus).mean(), prog_bar=True)
         self.log("val_opp_sigma", np.array(opponent_sigmas).mean(), prog_bar=True)
+        self.log("val_self-opp_mu", np.array(opponnent_mus)[2:].mean(), prog_bar=True)
+        self.log("val_self-opp_sigma", np.array(opponent_sigmas)[2:].mean(), prog_bar=True)
 
     def validation_step(self, batch: Tuple[Tensor, Tensor], nb_batch) -> OrderedDict:
         if self.use_pool:

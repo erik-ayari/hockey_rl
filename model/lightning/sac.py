@@ -364,6 +364,12 @@ class SoftActorCritic(pl.LightningModule):
         opponnent_mus = []
         opponent_sigmas = []
         model_rating = trueskill.Rating()
+
+        wins_weak       = 0.0
+        wins_strong     = 0.0
+        draws_weak      = 0.0
+        draws_strong    = 0.0
+
         for opponent_idx in range(len(self.opponent_pool)):
             opponent_rating = trueskill.Rating()
             self.opponent_pool.set_opponent(opponent_idx)
@@ -371,6 +377,18 @@ class SoftActorCritic(pl.LightningModule):
             for _ in range(self.pool_games_per_opponent):
                 outcome = self.play_1v1()
                 model_rating = self.opponent_pool.udpate_rating(model_rating, opponent_idx, outcome)
+
+                if opponent_idx < 2:
+                    if opponent_idx == 0:
+                        if outcome == 1:
+                            wins_weak += 1
+                        elif outcome == 0:
+                            draws_weak += 1
+                    elif opponent_idx == 1:
+                        if outcome == 1:
+                            wins_strong += 1
+                        elif outcome == 0:
+                            draws_strong += 1
 
             opponnent_mus.append(self.opponent_pool.get_rating(opponent_idx))
             opponent_sigmas.append(self.opponent_pool.get_rating(opponent_idx, sigma=True))
@@ -384,6 +402,17 @@ class SoftActorCritic(pl.LightningModule):
             elif model_mu == opp_mu:
                 count += 0.5  # Counting ties as half
         percentile = count / len(opponnent_mus) if opponnent_mus else 0.0
+
+        win_rate_weak       = wins_weak     / self.pool_games_per_opponent
+        win_rate_strong     = wins_strong   / self.pool_games_per_opponent
+
+        draw_rate_weak      = draws_weak    / self.pool_games_per_opponent
+        draw_rate_strong    = draws_strong  / self.pool_games_per_opponent
+
+        self.log("win_rate_weak", win_rate_weak)
+        self.log("win_rate_strong", win_rate_strong)
+        self.log("draw_rate_weak", draw_rate_weak)
+        self.log("draw_rate_strong", draw_rate_strong)
 
         self.log("val_percentile", percentile, prog_bar=True)
         self.log("val_model_rating_mu", model_mu, prog_bar=True)

@@ -12,6 +12,8 @@ import gymnasium as gym
 import pytorch_lightning as pl
 from pytorch_lightning.loggers import TensorBoardLogger
 
+from pytorch_lightning.callbacks import ModelCheckpoint
+
 def load_config(config_path: str) -> dict:
     with open(config_path, 'r') as f:
         config = json.load(f)
@@ -66,12 +68,21 @@ def main():
         name=config["logger"]["name"]
     )
 
+    # Create a ModelCheckpoint callback that saves a checkpoint after every validation
+    checkpoint_callback = ModelCheckpoint(
+        dirpath=f"{config['logger']['save_dir']}/{config['logger']['name']}",
+        filename="{epoch}-{step}",
+        save_top_k=-1,  # Save all checkpoints, do not delete previous ones
+        every_n_val_epochs=config["training"]["check_val_every_n_epoch"],
+    )
+
     trainer = pl.Trainer(
         accelerator             = config["training"]["accelerator"],
         log_every_n_steps       = config["training"]["log_every_n_steps"],
         check_val_every_n_epoch = config["training"]["check_val_every_n_epoch"],
         max_epochs              = config["training"]["max_epochs"],
-        logger                  = logger
+        logger                  = logger,
+        callbacks               = [checkpoint_callback]
     )
 
     trainer.fit(model)

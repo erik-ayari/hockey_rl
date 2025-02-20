@@ -160,7 +160,8 @@ class SoftActorCritic(pl.LightningModule):
             self.state, _ = self.env.reset()
             if self.use_pool:
                 self.opponent_pool.sample_opponent()
-        self.state_opponent = self.env.obs_agent_two()
+        if self.environment_type == EnvironmentType.GAME:
+            self.state_opponent = self.env.obs_agent_two()
         # Pick opponent if pool is used
         for _ in range(steps):
             # Sample Action
@@ -182,9 +183,10 @@ class SoftActorCritic(pl.LightningModule):
                 action_step = action.copy()
             # Collect consequences
             next_state, reward, done, truncated, info = self.env.step(action_step)
-            action_opponent = info["action_player2"]
-            next_state_opponent = self.env.obs_agent_two()
-            reward_opponent = self.env.get_reward_agent_two(self.env.get_info_agent_two())
+            if self.environment_type == EnvironmentType.GAME:
+                action_opponent = info["action_player2"]
+                next_state_opponent = self.env.obs_agent_two()
+                reward_opponent = self.env.get_reward_agent_two(self.env.get_info_agent_two())
 
             # We consider truncated to be also done
             done = done or truncated
@@ -200,13 +202,15 @@ class SoftActorCritic(pl.LightningModule):
             # Reset if necessary, otherwise next state becomes initial state
             if done:
                 self.state, _ = self.env.reset()
-                self.state_opponent = self.env.obs_agent_two()
+                if self.environment_type == EnvironmentType.GAME:
+                    self.state_opponent = self.env.obs_agent_two()
                 # Pick new opponent
                 if self.use_pool:
                     self.opponent_pool.sample_opponent()
             else:
                 self.state = next_state.copy()
-                self.state_opponent = next_state_opponent.copy()
+                if self.environment_type == EnvironmentType.GAME:
+                    self.state_opponent = next_state_opponent.copy()
             
             self.done = done
 

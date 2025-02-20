@@ -82,7 +82,6 @@ def plot_performance(steps, mean_values, std_values, env_name, tag='val_cumulati
     plt.xlabel("Steps")
     plt.ylabel("Cumulative Reward")
     plt.title(f"{env_name}")
-    plt.legend()
     plt.tight_layout()
     
     if save_dir:

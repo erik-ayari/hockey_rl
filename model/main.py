@@ -75,13 +75,15 @@ def main():
         save_top_k=-1,  # Save all checkpoints, do not delete previous ones
     )
 
+    save_checkpoints = config["training"].get('save_checkpoints', True)
+
     trainer = pl.Trainer(
         accelerator             = config["training"]["accelerator"],
         log_every_n_steps       = config["training"]["log_every_n_steps"],
         check_val_every_n_epoch = config["training"]["check_val_every_n_epoch"],
         max_epochs              = config["training"]["max_epochs"],
         logger                  = logger,
-        callbacks               = [checkpoint_callback]
+        callbacks               = ([checkpoint_callback] if save_checkpoints else [])
     )
 
     trainer.fit(model)

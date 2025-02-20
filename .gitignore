@@ -113,3 +113,6 @@ logs
 
 *.out
 *.err
+
+figures
+*.pdf

@@ -41,7 +41,7 @@
         "max_epochs": 100000000,
         "log_every_n_steps": 1,
         "check_val_every_n_epoch": 1000,
-        "accelerator": "cpu"
+        "accelerator": "gpu"
     },
     "logger": {
         "save_dir": "logs",

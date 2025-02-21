@@ -11,8 +11,10 @@ class OpponentPool():
         self,
         pool_size: int,
         actor_params: dict,
+        device,
         foreign_agents = None
     ):
+        self.device = device
         self.basic_weak     = BasicOpponent(weak=True)
         self.basic_strong   = BasicOpponent(weak=False)
 
@@ -66,8 +68,8 @@ class OpponentPool():
             return np.array(self.foreign_agents[self.opponent_idx - 2].act(observation))
         else:
             with torch.no_grad():
-                observation = torch.tensor(observation, dtype=torch.float).unsqueeze(0)
-                return self.snapshots[self.opponent_idx - 2].forward(observation, deterministic=True)[0].numpy()
+                observation = torch.tensor(observation, dtype=torch.float).to(self.device).unsqueeze(0)
+                return self.snapshots[self.opponent_idx - 2].forward(observation, deterministic=True)[0].cpu().numpy()
 
     def udpate_rating(self, model_rating, opponent_idx, outcome):
         if outcome == 1:

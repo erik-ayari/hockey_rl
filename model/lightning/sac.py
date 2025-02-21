@@ -145,7 +145,8 @@ class SoftActorCritic(pl.LightningModule):
                     "num_layers": self.actor_num_layers,
                     "hidden_dim": self.actor_hidden_dim
                 },
-                foreign_agents=foreign_agents
+                foreign_agents=foreign_agents,
+                device=self.device
             )
             self.snapshot_interval_steps = 0
             self.pool_games_per_opponent = pool_config["games_per_opponent"]
@@ -180,9 +181,9 @@ class SoftActorCritic(pl.LightningModule):
                 action = self.bootstrap_agent.act(self.state)
             # Or sample from agent
             else:
-                state_tensor = torch.tensor(self.state, dtype=torch.float).unsqueeze(0)
+                state_tensor = torch.tensor(self.state, dtype=torch.float).to(self.device).unsqueeze(0)
                 with torch.no_grad():
-                    action = self.actor.forward(state_tensor)[0][0].detach().numpy()
+                    action = self.actor.forward(state_tensor)[0][0].detach().cpu().numpy()
 
             if self.use_pool:
                 action_opponent = self.opponent_pool.act_opponent(self.state_opponent)
@@ -306,10 +307,10 @@ class SoftActorCritic(pl.LightningModule):
             cumulative_reward = 0.0
             done = False
             while not done:
-                state_tensor = torch.tensor(state, dtype=torch.float).unsqueeze(0)
+                state_tensor = torch.tensor(state, dtype=torch.float).to(self.device).unsqueeze(0)
                 with torch.no_grad():
                     # For validation we consider the actor's predicted mode as its action
-                    action = self.actor.forward(state_tensor, deterministic=True)[0].numpy()
+                    action = self.actor.forward(state_tensor, deterministic=True)[0].cpu().numpy()
 
                 if self.split_action_space == SplitActionSpace.SPLIT:
                     action_step = np.concatenate((action, np.zeros_like(action)))
@@ -354,9 +355,9 @@ class SoftActorCritic(pl.LightningModule):
         done = False
 
         while not done:
-            state_tensor = torch.tensor(state, dtype=torch.float).unsqueeze(0)
+            state_tensor = torch.tensor(state, dtype=torch.float).to(self.device).unsqueeze(0)
             with torch.no_grad():
-                action = self.actor.forward(state_tensor, deterministic=True)[0].numpy()
+                action = self.actor.forward(state_tensor, deterministic=True)[0].cpu().numpy()
                 action_opponent = self.opponent_pool.act_opponent(state_opponent)
 
                 action_step = np.hstack((action, action_opponent))

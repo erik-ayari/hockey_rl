@@ -69,7 +69,7 @@ class OpponentPool():
         else:
             with torch.no_grad():
                 observation = torch.tensor(observation, dtype=torch.float).to(self.device).unsqueeze(0)
-                return self.snapshots[self.opponent_idx - 2].forward(observation, deterministic=True)[0].cpu().numpy()
+                return self.snapshots[self.opponent_idx - self.num_foreign_agents - 2].forward(observation, deterministic=True)[0].cpu().numpy()
 
     def udpate_rating(self, model_rating, opponent_idx, outcome):
         if outcome == 1:

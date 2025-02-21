@@ -477,7 +477,8 @@ class SoftActorCritic(pl.LightningModule):
         dataset = RLDataset(self.buffer)
         dataloader = DataLoader(
             dataset=dataset,
-            batch_size=self.batch_size
+            batch_size=self.batch_size,
+            pin_memory=True
         )
         return dataloader
 

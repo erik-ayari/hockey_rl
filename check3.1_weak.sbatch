@@ -1,10 +1,10 @@
 #!/bin/bash
 #SBATCH --job-name=TBA_SAC
 #SBATCH --cpus-per-task=1
-#SBATCH --partition=day
-#SBATCH --mem-per-cpu=2G
+#SBATCH --partition=week
+#SBATCH --mem-per-cpu=4G
 #SBATCH --gres=gpu:0
-#SBATCH --time=00-10:00:00
+#SBATCH --time=01-06:00:00
 #SBATCH --error=job.%J.err
 #SBATCH --output=job.%J.out
 #SBATCH --mail-type=ALL

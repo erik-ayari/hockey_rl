@@ -1,8 +1,8 @@
 {
     "environment": {
-        "type": "Hockey_BasicOpponent",
+        "type": "HalfCheetah-v5",
         "kwargs": {
-            "weak_opponent": true
+            
         }
     },
     "model": {
@@ -29,13 +29,14 @@
         "target_entropy": null
     },
     "training": {
-        "max_epochs": 1500000,
+        "max_epochs": 100000,
         "log_every_n_steps": 1,
         "check_val_every_n_epoch": 1000,
-        "accelerator": "cpu"
+        "accelerator": "cpu",
+        "save_checkpoints": false
     },
     "logger": {
         "save_dir": "logs",
-        "name": "sac_hockey_weak"
+        "name": "sac_pendulum"
     }
 }

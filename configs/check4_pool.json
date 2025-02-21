@@ -32,7 +32,7 @@
             "size": 15,
             "snapshot_interval": 100000,
             "games_per_opponent": 15,
-            "checkpoints": []
+            "checkpoints_mpo": ["foreign_agents/checkpoints/mpo.pth"]
         }
     },
     "training": {

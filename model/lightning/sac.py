@@ -1,6 +1,7 @@
 from model.modules import Actor, Critic
 from data import Experience, ReplayBuffer, RLDataset, OpponentPool
 from utils import EnvironmentType, AgentType, SplitActionSpace
+from foreign_agents import MPODestilledAgent
 
 from typing import Tuple, OrderedDict, List, Union
 from math import prod
@@ -128,6 +129,12 @@ class SoftActorCritic(pl.LightningModule):
             self.use_pool           = pool_config["use_pool"]
             self.pool_size          = pool_config["size"]
             self.snapshot_interval  = pool_config["snapshot_interval"]
+            
+            foreign_agents = []
+            for mpo_path in pool_config["checkpoints_mpo"]:
+                mpo = MPODestilledAgent(mpo_path)
+                foreign_agents.append(mpo)
+
             self.opponent_pool      = OpponentPool(
                 pool_size=self.pool_size,
                 actor_params = {
@@ -135,21 +142,11 @@ class SoftActorCritic(pl.LightningModule):
                     "action_dim": self.action_dim,
                     "num_layers": self.actor_num_layers,
                     "hidden_dim": self.actor_hidden_dim
-                }
+                },
+                foreign_agents=foreign_agents
             )
             self.snapshot_interval_steps = 0
             self.pool_games_per_opponent = pool_config["games_per_opponent"]
-
-            for checkpoint_path in pool_config["checkpoints"]:
-                checkpoint_path = f"{checkpoint_path}.ckpt"
-                snapshot = Actor(
-                    state_dim=self.state_dim,
-                    action_dim=self.action_dim,
-                    num_layers=self.actor_num_layers,
-                    hidden_dim=self.actor_hidden_dim
-                )
-                snapshot.load_checkpoint(checkpoint_path)
-                self.opponent_pool.add_snapshot(snapshot)
 
         # Warm Up Buffer
         self.populate(start_steps - 1, warm_up=True)
@@ -371,8 +368,10 @@ class SoftActorCritic(pl.LightningModule):
 
         wins_weak       = 0.0
         wins_strong     = 0.0
+        wins_mpo        = 0.0
         draws_weak      = 0.0
         draws_strong    = 0.0
+        draws_mpo       = 0.0
 
         for opponent_idx in range(len(self.opponent_pool)):
             opponent_rating = trueskill.Rating()
@@ -382,7 +381,7 @@ class SoftActorCritic(pl.LightningModule):
                 outcome = self.play_1v1()
                 model_rating = self.opponent_pool.udpate_rating(model_rating, opponent_idx, outcome)
 
-                if opponent_idx < 2:
+                if opponent_idx < 3:
                     if opponent_idx == 0:
                         if outcome == 1:
                             wins_weak += 1
@@ -393,6 +392,11 @@ class SoftActorCritic(pl.LightningModule):
                             wins_strong += 1
                         elif outcome == 0:
                             draws_strong += 1
+                    else:
+                        if outcome == 1:
+                            wins_mpo += 1
+                        elif outcome == 0:
+                            draws_mpo += 1
 
             opponnent_mus.append(self.opponent_pool.get_rating(opponent_idx))
             opponent_sigmas.append(self.opponent_pool.get_rating(opponent_idx, sigma=True))
@@ -409,14 +413,18 @@ class SoftActorCritic(pl.LightningModule):
 
         win_rate_weak       = wins_weak     / self.pool_games_per_opponent
         win_rate_strong     = wins_strong   / self.pool_games_per_opponent
+        win_rate_mpo        = wins_mpo      / self.pool_games_per_opponent
 
         draw_rate_weak      = draws_weak    / self.pool_games_per_opponent
         draw_rate_strong    = draws_strong  / self.pool_games_per_opponent
+        draw_rate_mpo       = draws_mpo     / self.pool_games_per_opponent
 
         self.log("win_rate_weak",       win_rate_weak)
         self.log("win_rate_strong",     win_rate_strong)
+        self.log("win_rate_mpo",        win_rate_mpo)
         self.log("draw_rate_weak",      draw_rate_weak)
         self.log("draw_rate_strong",    draw_rate_strong)
+        self.log("draw_rate_mpo",       draw_rate_mpo)
 
         self.log("val_percentile",          percentile, prog_bar=True)
         self.log("val_model_rating_mu",     model_mu, prog_bar=True)
@@ -430,12 +438,14 @@ class SoftActorCritic(pl.LightningModule):
 
         self.log("val_weak-opp_mu",         opponnent_mus[0])
         self.log("val_strong-opp_mu",       opponnent_mus[1])
+        self.log("val_mpo-opp_mu",          opponnent_mus[2])
         self.log("val_weak-opp_sigma",      opponent_sigmas[0])
         self.log("val_strong-opp_sigma",    opponent_sigmas[1])
+        self.log("val_mpo-opp_sigma",       opponent_sigmas[2])
 
-        if len(opponnent_mus) > 2:
-            self.log("val_self-opp_mu", np.array(opponnent_mus)[2:].mean(), prog_bar=True)
-            self.log("val_self-opp_sigma", np.array(opponent_sigmas)[2:].mean(), prog_bar=True)
+        if len(opponnent_mus) > 3:
+            self.log("val_self-opp_mu", np.array(opponnent_mus)[3:].mean(), prog_bar=True)
+            self.log("val_self-opp_sigma", np.array(opponent_sigmas)[3:].mean(), prog_bar=True)
 
     def validation_step(self, batch: Tuple[Tensor, Tensor], nb_batch) -> OrderedDict:
         if self.use_pool:

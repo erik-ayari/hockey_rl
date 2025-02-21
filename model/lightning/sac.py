@@ -2,9 +2,11 @@ from model.modules import Actor, Critic
 from data import Experience, ReplayBuffer, RLDataset, OpponentPool
 from utils import EnvironmentType, AgentType, SplitActionSpace
 from foreign_agents import MPODestilledAgent
+from hockey.hockey_env import BasicOpponent
 
 from typing import Tuple, OrderedDict, List, Union
 from math import prod
+from tqdm import tqdm
 
 import numpy as np
 import gymnasium as gym
@@ -148,10 +150,20 @@ class SoftActorCritic(pl.LightningModule):
             self.snapshot_interval_steps = 0
             self.pool_games_per_opponent = pool_config["games_per_opponent"]
 
-        # Warm Up Buffer
-        self.populate(start_steps - 1, warm_up=True)
+        self.steps_per_epoch = model_config.get('steps_per_epoch', 1000)
 
-    def populate(self, steps: int, warm_up=False):
+        # Bootstrap with Strong Basic Opponent
+        self.bootstrap_agent = BasicOpponent(weak=False)
+        self.bootstrap_steps = model_config.get('bootstrap_steps', self.steps_per_epoch)
+
+        # Warm Up Buffer
+        #self.populate(warm_up=True)
+
+    def on_train_epoch_start(self):
+        if self.current_epoch % self.steps_per_epoch == 0:
+            self.populate(warm_up=(self.current_epoch == 0))
+
+    def populate(self, warm_up=False):
         # Reset Env
         if self.done:
             self.state, _ = self.env.reset()
@@ -160,11 +172,12 @@ class SoftActorCritic(pl.LightningModule):
         if self.environment_type == EnvironmentType.GAME:
             self.state_opponent = self.env.obs_agent_two()
         # Pick opponent if pool is used
+        steps = self.bootstrap_steps if warm_up else self.steps_per_epoch
         for _ in range(steps):
             # Sample Action
-            # Either randomly (to increase variance/diversity in dataset compared to using untrained agent)
+            # Bootstrap with Strong Opponent
             if warm_up:
-                action = self.action_space.sample()
+                action = self.bootstrap_agent.act(self.state)
             # Or sample from agent
             else:
                 state_tensor = torch.tensor(self.state, dtype=torch.float).unsqueeze(0)
@@ -212,8 +225,6 @@ class SoftActorCritic(pl.LightningModule):
             self.done = done
 
     def training_step(self, batch: Tuple[Tensor, Tensor], nb_batch) -> OrderedDict:
-        self.populate(steps=1, warm_up=(self.current_epoch == 0))
-
         states, actions, rewards, dones, next_states = batch
 
         # Convert dones to float so we can calculate with it

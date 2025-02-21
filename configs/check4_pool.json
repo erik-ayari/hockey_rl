@@ -6,7 +6,7 @@
         }
     },
     "model": {
-        "batch_size": 256,
+        "batch_size": 1024,
         "replay_size": 1000000,
         "start_steps": 100,
         "validation_length": 20,

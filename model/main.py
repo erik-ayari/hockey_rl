@@ -44,6 +44,13 @@ def main():
         type=str,
         help='Path to the JSON configuration file. (Usually "configs/...json")'
     )
+    parser.add_argument(
+        '--resume_from_checkpoint',
+        '-r',
+        type=str,
+        default=None,
+        help='Path to a checkpoint file to resume training.'
+    )
     args = parser.parse_args()
 
     # Load configuration
@@ -86,7 +93,10 @@ def main():
         callbacks               = ([checkpoint_callback] if save_checkpoints else [])
     )
 
-    trainer.fit(model)
+    trainer.fit(
+        model,
+        ckpt_path=args.resume_from_checkpoint
+    )
 
 if __name__ == "__main__":
     main()

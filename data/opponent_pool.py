@@ -12,7 +12,8 @@ class OpponentPool():
         pool_size: int,
         actor_params: dict,
         device,
-        foreign_agents = None
+        foreign_agents = None,
+        equal_class_weighting = False
     ):
         self.device = device
         self.basic_weak     = BasicOpponent(weak=True)
@@ -32,6 +33,8 @@ class OpponentPool():
         for _ in range(self.num_foreign_agents):
             self.ratings.append(trueskill.Rating())
         self.snapshot_start_idx = 2 + self.num_foreign_agents
+
+        self.equal_class_weighting = equal_class_weighting
 
     def add_snapshot(self, actor):
         snapshot = Actor(
@@ -53,7 +56,18 @@ class OpponentPool():
             self.ratings.pop(self.snapshot_start_idx)
     
     def sample_opponent(self):
-        self.opponent_idx = random.randint(0, len(self.snapshots) + self.num_foreign_agents + 1)
+        num_choices = 1
+        if len(self.snapshots) > 0:
+            num_choices += 1
+        if len(self.foreign_agents) > 0:
+            num_choices += 1
+        choice = random.randint(0, num_choices - 1)
+        if choice == 0:
+            self.opponent_idx = random.randint(0, 1)
+        elif choice == 1:
+            self.opponent_idx = random.randint(2, self.num_foreign_agents + 1)
+        else:
+            self.opponent_idx = random.randint(2 + self.num_foreign_agents, len(self.snapshots) + self.num_foreign_agents + 1)
 
     def set_opponent(self, idx):
         self.opponent_idx = idx

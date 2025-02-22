@@ -137,6 +137,8 @@ class SoftActorCritic(pl.LightningModule):
                 mpo = MPODestilledAgent(mpo_path)
                 foreign_agents.append(mpo)
 
+            self.equal_class_weighting = pool_config.get("equal_class_weighting", False)
+
             self.opponent_pool      = OpponentPool(
                 pool_size=self.pool_size,
                 actor_params = {
@@ -146,6 +148,7 @@ class SoftActorCritic(pl.LightningModule):
                     "hidden_dim": self.actor_hidden_dim
                 },
                 foreign_agents=foreign_agents,
+                equal_class_weighting=self.equal_class_weighting,
                 device=self.device
             )
             self.snapshot_interval_steps = 0

@@ -66,7 +66,8 @@ def main():
         environment_type,
         agent_type,
         split_action_space,
-        config["model"]
+        config["model"],
+        resume=(args.resume_from_checkpoint != None)
     )
 
     # TensorBoard Logger

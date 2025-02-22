@@ -28,7 +28,8 @@ class SoftActorCritic(pl.LightningModule):
         environment_type: EnvironmentType,
         agent_type: AgentType,
         split_action_space: SplitActionSpace,
-        model_config: dict
+        model_config: dict,
+        resume = False
     ):
         super(SoftActorCritic, self).__init__()
 
@@ -160,12 +161,14 @@ class SoftActorCritic(pl.LightningModule):
         self.bootstrap_agent = BasicOpponent(weak=False)
         self.bootstrap_steps = model_config.get('bootstrap_steps', self.steps_per_epoch)
 
+        self.resume = resume
+
         # Warm Up Buffer
         #self.populate(warm_up=True)
 
     def on_train_epoch_start(self):
         if self.current_epoch % self.steps_per_epoch == 0:
-            self.populate(warm_up=(self.current_epoch == 0))
+            self.populate(warm_up=(self.current_epoch == 0 and not self.resume))
 
     def populate(self, warm_up=False):
         # Reset Env
@@ -454,13 +457,15 @@ class SoftActorCritic(pl.LightningModule):
         self.log("val_weak-opp_mu",         opponnent_mus[0])
         self.log("val_strong-opp_mu",       opponnent_mus[1])
         self.log("val_mpo-opp_mu",          opponnent_mus[2])
+        self.log("val_mpo2-opp_mu",          opponnent_mus[3])
         self.log("val_weak-opp_sigma",      opponent_sigmas[0])
         self.log("val_strong-opp_sigma",    opponent_sigmas[1])
         self.log("val_mpo-opp_sigma",       opponent_sigmas[2])
+        self.log("val_mpo2-opp_sigma",       opponent_sigmas[3])
 
-        if len(opponnent_mus) > 3:
-            self.log("val_self-opp_mu", np.array(opponnent_mus)[3:].mean(), prog_bar=True)
-            self.log("val_self-opp_sigma", np.array(opponent_sigmas)[3:].mean(), prog_bar=True)
+        if len(opponnent_mus) > 4:
+            self.log("val_self-opp_mu", np.array(opponnent_mus)[4:].mean(), prog_bar=True)
+            self.log("val_self-opp_sigma", np.array(opponent_sigmas)[4:].mean(), prog_bar=True)
 
     def validation_step(self, batch: Tuple[Tensor, Tensor], nb_batch) -> OrderedDict:
         if self.use_pool:

@@ -31,7 +31,7 @@ termination_times=()
 
 while true; do
     # Run the command foobar
-    singularity exec /home/stud402/container.sif \
+    singularity run /home/stud402/container.sif \
       python3 -m tournament.run_client \
         --token 3930feb1-8239-44b8-9853-7854e473dea6 \
         --server-port 65335 \

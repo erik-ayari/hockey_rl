@@ -97,7 +97,6 @@ class OpponentPool():
             with torch.no_grad():
                 observation = torch.tensor(observation, dtype=torch.float).unsqueeze(0)
                 if self.opponent_type == "foreign":
-                    print(self.opponent)
                     return np.array(self.foreign_agents[self.opponent].act(observation))
                 else:
                     return np.array(self.snapshots[self.opponent].act(observation))

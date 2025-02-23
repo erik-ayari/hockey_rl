@@ -80,7 +80,8 @@ def main():
     checkpoint_callback = ModelCheckpoint(
         dirpath=f"{config['logger']['save_dir']}/{config['logger']['name']}",
         filename="{epoch}-{step}",
-        save_top_k=-1,  # Save all checkpoints, do not delete previous ones
+        save_top_k=-1,  # Save all checkpoints
+        every_n_epochs=10000  # Save a checkpoint every 10k epochs
     )
 
     save_checkpoints = config["training"].get('save_checkpoints', True)

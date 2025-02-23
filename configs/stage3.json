@@ -36,7 +36,7 @@
             "checkpoints_sac": ["sac_22_02"],
             "weighting": [0.1, 0.45, 0.45]
         },
-        "bootstrap_steps": 1000,
+        "bootstrap_steps": 100000,
         "steps_per_epoch": 1000
     },
     "training": {

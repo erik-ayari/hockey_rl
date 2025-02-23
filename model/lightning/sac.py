@@ -494,9 +494,9 @@ class SoftActorCritic(pl.LightningModule):
             self.log(f"{key}_sigma", sigma)
         snapshot_mus = []
         snapshot_sigmas = []
-        for key in ratings["snapshots"]:
-            snapshot_mus.append(ratings["snapshots"][key].mu)
-            snapshot_sigmas.append(ratings["snapshots"][key].sigma)
+        for index, _ in enumerate(ratings["snapshots"]):
+            snapshot_mus.append(ratings["snapshots"][index].mu)
+            snapshot_sigmas.append(ratings["snapshots"][index].sigma)
         
         if len(snapshot_mus) > 0:
             snapshot_mus = np.array(snapshot_mus)

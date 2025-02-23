@@ -181,7 +181,7 @@ class SoftActorCritic(pl.LightningModule):
 
     def on_train_epoch_start(self):
         if self.current_epoch % self.steps_per_epoch == 0:
-            self.populate(warm_up=(self.current_epoch == 0 and not self.resume))
+            self.populate(warm_up=(self.current_epoch == 0))
 
     def populate(self, warm_up=False):
         # Reset Env
@@ -196,7 +196,7 @@ class SoftActorCritic(pl.LightningModule):
         for _ in range(steps):
             # Sample Action
             # Bootstrap with Strong Opponent
-            if warm_up:
+            if warm_up and not self.resume:
                 action = self.bootstrap_agent.act(self.state)
             # Or sample from agent
             else:

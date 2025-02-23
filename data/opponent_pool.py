@@ -19,6 +19,8 @@ class OpponentPool():
 
         self.foreign_agents = foreign_agents
         self.foreign_agents_exist = (len(self.foreign_agents) > 0)
+
+        self.actor_params = actor_params
     
         required_weightings = 3 if self.foreign_agents_exist else 2
 
@@ -59,7 +61,7 @@ class OpponentPool():
         snapshot.eval()
 
         self.snapshots.append(snapshot)
-        self.ratings["snapshots"][-1] = trueskill.Rating()
+        self.ratings["snapshots"].append(trueskill.Rating())
 
         print("[INFO] Added a new snapshot to the pool.")
     

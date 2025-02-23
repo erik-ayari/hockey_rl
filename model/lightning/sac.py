@@ -1,7 +1,7 @@
 from model.modules import Actor, Critic
 from data import Experience, ReplayBuffer, RLDataset, OpponentPool
 from utils import EnvironmentType, AgentType, SplitActionSpace
-from foreign_agents import MPODestilledAgent
+from foreign_agents import MPODestilledAgent, TDMPC2DestilledAgent
 from hockey.hockey_env import BasicOpponent
 
 from typing import Tuple, OrderedDict, List, Union
@@ -130,18 +130,31 @@ class SoftActorCritic(pl.LightningModule):
             self.use_pool = False
         else:
             self.use_pool           = pool_config["use_pool"]
-            self.pool_size          = pool_config["size"]
             self.snapshot_interval  = pool_config["snapshot_interval"]
-            
-            foreign_agents = []
-            for mpo_path in pool_config["checkpoints_mpo"]:
-                mpo = MPODestilledAgent(mpo_path)
-                foreign_agents.append(mpo)
 
-            self.equal_class_weighting = pool_config.get("equal_class_weighting", False)
+            checkpoints_mpo = pool_config.get("checkpoints_mpo", [])
+            checkpoints_tdmpc2 = pool_config.get("checkpoints_tdmpc2", [])
+            checkpoints_sac = pool_config.get("checkpoints_sac", [])
+            
+            foreign_agents = {}
+            for mpo_path in checkpoints_mpo:
+                name = mpo_path
+                mpo_path = f"foreign_agents/checkpoints/{mpo_path}.pth"
+                mpo = MPODestilledAgent(mpo_path)
+                foreign_agents[name] = mpo
+            for tdmpc2_path in checkpoints_tdmpc2:
+                name = tdmpc2_path
+                tdmpc2_path = f"foreign_agents/checkpoints/{tdmpc2_path}.pth"
+                tdmpc2 = TDMPC2DestilledAgent(tdmpc2_path)
+                foreign_agents[name] = tdmpc2
+            for sac_path in checkpoints_sac:
+                name = sac_path
+                sac_path = f"foreign_agents/checkpoints/{sac_path}.ckpt"
+                sac = Actor(state_dim=18, action_dim=4, num_layers=2, hidden_dim=256)
+                sac.load_checkpoint(sac_path)
+                foreign_agents[name] = sac
 
             self.opponent_pool      = OpponentPool(
-                pool_size=self.pool_size,
                 actor_params = {
                     "state_dim" : self.state_dim,
                     "action_dim": self.action_dim,
@@ -149,7 +162,7 @@ class SoftActorCritic(pl.LightningModule):
                     "hidden_dim": self.actor_hidden_dim
                 },
                 foreign_agents=foreign_agents,
-                equal_class_weighting=self.equal_class_weighting,
+                weighting=pool_config.get("weighting", []),
                 device=self.device
             )
             self.snapshot_interval_steps = 0
@@ -218,6 +231,7 @@ class SoftActorCritic(pl.LightningModule):
 
             # Reset if necessary, otherwise next state becomes initial state
             if done:
+                self.opponent_pool.udpate_rating(info['winner'])
                 self.state, _ = self.env.reset()
                 if self.environment_type == EnvironmentType.GAME:
                     self.state_opponent = self.env.obs_agent_two()
@@ -467,9 +481,40 @@ class SoftActorCritic(pl.LightningModule):
             self.log("val_self-opp_mu", np.array(opponnent_mus)[4:].mean(), prog_bar=True)
             self.log("val_self-opp_sigma", np.array(opponent_sigmas)[4:].mean(), prog_bar=True)
 
+    def log_ratings(self):
+        ratings = self.opponent_pool.get_ratings()
+        for key in ratings["basic"]:
+            mu = ratings["basic"][key].mu
+            sigma = ratings["basic"][key].sigma
+            self.log(f"{key}_mu", mu, prog_bar=True)
+            self.log(f"{key}_sigma", sigma, prog_bar=True)
+        snapshot_mus = []
+        snapshot_sigmas = []
+        for key in ratings["snapshots"]:
+            snapshot_mus.append(ratings["snapshots"][key].mu)
+            snapshot_sigmas.append(ratings["snapshots"][key].sigma)
+        
+        if len(snapshot_mus) > 0:
+            snapshot_mus = np.array(snapshot_mus)
+            snapshot_sigmas = np.array(snapshot_sigmas)
+            self.log("snapshots_mu", snapshot_mus.mean(), prog_bar=True)
+            self.log("snapshots_sigma", snapshot_sigmas.mean(), prog_bar=True)
+        
+        if self.opponent_pool.foreign_agents_exist:
+            foreign_mus = []
+            foreign_sigmas = []
+            for key in ratings["foreign"]:
+                foreign_mus.append(ratings["foreign"][key].mu)
+                foreign_sigmas.append(ratings["foreign"][key].sigma)
+            foreign_mus = np.array(foreign_mus)
+            foreign_sigmas = np.array(foreign_sigmas)
+            self.log("foreign_mu", foreign_mus.mean(), prog_bar=True)
+            self.log("foreign_sigma", foreign_sigmas.mean(), prog_bar=True)
+
     def validation_step(self, batch: Tuple[Tensor, Tensor], nb_batch) -> OrderedDict:
         if self.use_pool:
-            self.tournament_validation()
+            self.log_ratings()
+            #self.tournament_validation()
         else:
             self.regular_validation()
 

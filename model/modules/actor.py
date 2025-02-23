@@ -69,6 +69,9 @@ class Actor(nn.Module):
 
         return action, log_prob
 
+    def act(self, x):
+        return self.forward(x)[0][0]
+
     def load_checkpoint(self, checkpoint_path):
         checkpoint = torch.load(checkpoint_path, map_location="cpu")
         state_dict = checkpoint["state_dict"]

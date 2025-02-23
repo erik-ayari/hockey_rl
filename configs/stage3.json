@@ -1,0 +1,52 @@
+{
+    "environment": {
+        "type": "Hockey",
+        "kwargs": {
+            "mode": 0
+        }
+    },
+    "model": {
+        "batch_size": 1024,
+        "replay_size": 1000000,
+        "start_steps": 100,
+        "validation_length": 20,
+        "gamma": 0.99,
+        "actor": {
+            "num_layers": 2,
+            "hidden_dim": 256,
+            "lr": 0.0003
+        },
+        "critic": {
+            "num_layers": 2,
+            "hidden_dim": 256,
+            "lr": 0.0003,
+            "tau": 0.005
+        },
+        "alpha": {
+            "log_init": 1,
+            "lr": 0.0003
+        },
+        "target_entropy": null,
+        "pool": {
+            "use_pool": true,
+            "snapshot_interval": 25000,
+            "games_per_opponent": 15,
+            "checkpoints_mpo": ["mpo", "mpo2", "mpo3", "mpo_old1", "mpo_old2", "mpo_old3"],
+            "checkpoints_tdmpc2": ["tdmpc2"],
+            "checkpoints_sac": ["sac_22_02"],
+            "weighting": [0.1, 0.45, 0.45]
+        },
+        "bootstrap_steps": 1000,
+        "steps_per_epoch": 1000
+    },
+    "training": {
+        "max_epochs": 100000000,
+        "log_every_n_steps": 1000,
+        "check_val_every_n_epoch": 25000,
+        "accelerator": "gpu"
+    },
+    "logger": {
+        "save_dir": "logs",
+        "name": "sac_hockey_pool_stage2"
+    }
+}

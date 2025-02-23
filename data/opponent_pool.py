@@ -2,6 +2,7 @@ import random
 import torch
 import trueskill
 import numpy as np
+from itertools import accumulate
 
 from hockey.hockey_env import BasicOpponent
 from model.modules import Actor
@@ -9,32 +10,43 @@ from model.modules import Actor
 class OpponentPool():
     def __init__(
         self,
-        pool_size: int,
         actor_params: dict,
-        device,
-        foreign_agents = None,
-        equal_class_weighting = False
+        foreign_agents : dict = {},
+        weighting : list = [],
+        device = torch.device("cpu")
     ):
         self.device = device
+
+        self.foreign_agents = foreign_agents
+        self.foreign_agents_exist = (len(self.foreign_agents) > 0)
+    
+        required_weightings = 3 if self.foreign_agents_exist else 2
+
+        assert(len(weighting) == required_weightings)
+        assert(sum(weighting) == 1.0)
+
+        self.weighting = list(accumulate(weighting))
+
+        self.ratings = {
+            "basic": {
+                "weak": trueskill.Rating(),
+                "strong": trueskill.Rating()
+            },
+            "snapshots": []
+        }
+
+        self.model_rating = trueskill.Rating()
+
+        if self.foreign_agents_exist:
+            ratings_foreign = {}
+            for name in self.foreign_agents.keys():
+                ratings_foreign[name] = trueskill.Rating()
+            self.ratings["foreign"] = ratings_foreign
+
         self.basic_weak     = BasicOpponent(weak=True)
         self.basic_strong   = BasicOpponent(weak=False)
 
-        self.foreign_agents = foreign_agents
-        self.num_foreign_agents = 0 if self.foreign_agents == None else len(self.foreign_agents)
-
-        self.snapshots      = []
-
-        self.pool_size      = pool_size
-        self.actor_params   = actor_params
-
-        self.ratings = []
-        self.ratings.append(trueskill.Rating())
-        self.ratings.append(trueskill.Rating())
-        for _ in range(self.num_foreign_agents):
-            self.ratings.append(trueskill.Rating())
-        self.snapshot_start_idx = 2 + self.num_foreign_agents
-
-        self.equal_class_weighting = equal_class_weighting
+        self.snapshots = []
 
     def add_snapshot(self, actor):
         snapshot = Actor(
@@ -47,57 +59,55 @@ class OpponentPool():
         snapshot.eval()
 
         self.snapshots.append(snapshot)
-        self.ratings.append(trueskill.Rating())
+        self.ratings["snapshots"][-1] = trueskill.Rating()
 
         print("[INFO] Added a new snapshot to the pool.")
-
-        if len(self.snapshots) > self.pool_size:
-            self.snapshots.pop(0)
-            self.ratings.pop(self.snapshot_start_idx)
     
     def sample_opponent(self):
-        num_choices = 1
-        if len(self.snapshots) > 0:
-            num_choices += 1
-        if len(self.foreign_agents) > 0:
-            num_choices += 1
-        choice = random.randint(0, num_choices - 1)
-        if choice == 0:
-            self.opponent_idx = random.randint(0, 1)
-        elif choice == 1:
-            self.opponent_idx = random.randint(2, self.num_foreign_agents + 1)
-        else:
-            self.opponent_idx = random.randint(2 + self.num_foreign_agents, len(self.snapshots) + self.num_foreign_agents + 1)
-
-    def set_opponent(self, idx):
-        self.opponent_idx = idx
+        choice = random.random()
+        choice_idx = 0
+        for cum_prob in self.weighting:
+            if choice > cum_prob:
+                choice_idx += 1
+            else:
+                break
+        if choice_idx == 0:
+            self.opponent_type = "basic"
+            self.opponent = "weak" if random.random() < 0.5 else "strong"
+        if self.foreign_agents_exist:
+            if choice_idx == 1:
+                self.opponent_type = "foreign"
+                self.opponent = random.choice(list(self.foreign_agents.keys()))
+            if choice_idx == 2:
+                if len(self.snapshots) == 0:
+                    self.sample_opponent()
+                    return
+                self.opponent_type = "snapshots"
+                self.opponent = random.randint(0, len(self.snapshots) - 1)
 
     def act_opponent(self, observation):
-        if self.opponent_idx == 0:
-            return self.basic_weak.act(observation)
-        elif self.opponent_idx == 1:
-            return self.basic_strong.act(observation)
-        elif self.opponent_idx < self.snapshot_start_idx:
-            observation = torch.tensor(observation, dtype=torch.float).unsqueeze(0)
-            return np.array(self.foreign_agents[self.opponent_idx - 2].act(observation))
+        if self.opponent_type == "basic":
+            if self.opponent == "weak":
+                return self.basic_weak.act(observation)
+            elif self.opponent == "strong":
+                return self.basic_strong.act(observation)
         else:
             with torch.no_grad():
-                observation = torch.tensor(observation, dtype=torch.float).to(self.device).unsqueeze(0)
-                return self.snapshots[self.opponent_idx - self.num_foreign_agents - 2].forward(observation, deterministic=True)[0].cpu().numpy()
+                observation = torch.tensor(observation, dtype=torch.float).unsqueeze(0)
+                if self.opponent_type == "foreign":
+                    print(self.opponent)
+                    return np.array(self.foreign_agents[self.opponent].act(observation))
+                else:
+                    return np.array(self.snapshots[self.opponent].act(observation))
 
-    def udpate_rating(self, model_rating, opponent_idx, outcome):
+    def udpate_rating(self, outcome):
+        print(f"Updating rating with outcome {outcome} of {self.opponent_type}, {self.opponent}")
         if outcome == 1:
-            model_rating, self.ratings[opponent_idx] = trueskill.rate_1vs1(model_rating, self.ratings[opponent_idx])
+            self.model_rating, self.ratings[self.opponent_type][self.opponent] = trueskill.rate_1vs1(self.model_rating, self.ratings[self.opponent_type][self.opponent])
         elif outcome == -1:
-            self.ratings[opponent_idx], model_rating = trueskill.rate_1vs1(self.ratings[opponent_idx], model_rating)
+            self.ratings[self.opponent_type][self.opponent], self.model_rating = trueskill.rate_1vs1(self.ratings[self.opponent_type][self.opponent], self.model_rating)
         else:
-            model_rating, self.ratings[opponent_idx] = trueskill.rate_1vs1(model_rating, self.ratings[opponent_idx], drawn=True)
-        return model_rating
+            self.model_rating, self.ratings[self.opponent_type][self.opponent] = trueskill.rate_1vs1(self.model_rating, self.ratings[self.opponent_type][self.opponent], drawn=True)
     
-    def get_rating(self, opponent_idx, sigma=False):
-        if sigma:
-            return self.ratings[opponent_idx].sigma
-        return self.ratings[opponent_idx].mu
-
-    def __len__(self):
-        return len(self.snapshots) + self.num_foreign_agents + 2
+    def get_ratings(self):
+        return self.ratings

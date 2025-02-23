@@ -47,6 +47,6 @@
     },
     "logger": {
         "save_dir": "logs",
-        "name": "sac_hockey_pool_stage2"
+        "name": "sac_hockey_pool_stage3"
     }
 }

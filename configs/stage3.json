@@ -29,7 +29,7 @@
         "target_entropy": null,
         "pool": {
             "use_pool": true,
-            "snapshot_interval": 25000,
+            "snapshot_interval": 100000,
             "games_per_opponent": 15,
             "checkpoints_mpo": ["mpo", "mpo2", "mpo3", "mpo_old1", "mpo_old2", "mpo_old3"],
             "checkpoints_tdmpc2": ["tdmpc2"],

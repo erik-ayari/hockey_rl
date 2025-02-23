@@ -180,14 +180,14 @@ class SoftActorCritic(pl.LightningModule):
         #self.populate(warm_up=True)
 
     def on_train_start(self):
-        print("Populating at the start of training")
-        self.populate(warm_up=True)
+        self.populated = False
 
-    def on_train_epoch_end(self):
-        self.populate()
+    def on_train_epoch_start(self):
+        if self.current_epoch % self.steps_per_epoch == 0:
+            self.populate(warm_up=self.populated)
+            self.populated = True
 
     def populate(self, warm_up=False):
-        print("Here")
         # Reset Env
         if self.done:
             self.state, _ = self.env.reset()

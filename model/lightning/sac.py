@@ -498,6 +498,7 @@ class SoftActorCritic(pl.LightningModule):
             snapshot_mus = np.array(snapshot_mus)
             snapshot_sigmas = np.array(snapshot_sigmas)
             self.log("snapshots_mu", snapshot_mus.mean(), prog_bar=True)
+            self.log("snapshots_mu_max", snapshot_mus.max(), prog_bar=True)
             self.log("snapshots_sigma", snapshot_sigmas.mean())
         
         if self.opponent_pool.foreign_agents_exist:
@@ -509,6 +510,7 @@ class SoftActorCritic(pl.LightningModule):
             foreign_mus = np.array(foreign_mus)
             foreign_sigmas = np.array(foreign_sigmas)
             self.log("foreign_mu", foreign_mus.mean(), prog_bar=True)
+            self.log("foreign_mu_max", foreign_mus.max(), prog_bar=True)
             self.log("foreign_sigma", foreign_sigmas.mean())
 
         self.log("model_mu", model_rating.mu, prog_bar=True)

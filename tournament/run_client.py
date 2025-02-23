@@ -16,7 +16,7 @@ class SACAgent(Agent):
     """A hockey agent that simply uses random actions."""
     def __init__(self, load_path : str):
         super().__init__()
-        self.actor = Actor(state_dim=18, action_dim=4, num_layers=1, hidden_dim=256)
+        self.actor = Actor(state_dim=18, action_dim=4, num_layers=2, hidden_dim=256)
         self.actor.load_checkpoint(load_path)
 
     def get_step(self, observation: list[float]) -> list[float]:

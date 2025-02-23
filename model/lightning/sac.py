@@ -186,7 +186,8 @@ class SoftActorCritic(pl.LightningModule):
             self.populated = True
 
     def populate(self, warm_up=False):
-        print("Populating for the first time")
+        if warm_up:
+            print("[INFO] Warm Up")
         # Reset Env
         if self.done:
             self.state, _ = self.env.reset()

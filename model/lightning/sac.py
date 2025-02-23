@@ -175,19 +175,15 @@ class SoftActorCritic(pl.LightningModule):
         self.bootstrap_steps = model_config.get('bootstrap_steps', self.steps_per_epoch)
 
         self.resume = resume
-        self.populated = False
 
         # Warm Up Buffer
         #self.populate(warm_up=True)
 
     def on_train_epoch_start(self):
         if self.current_epoch % self.steps_per_epoch == 0:
-            self.populate(warm_up=(self.current_epoch == 0 or (self.resume and not self.populated)))
-            self.populated = True
+            self.populate(warm_up=(self.current_epoch == 0))
 
     def populate(self, warm_up=False):
-        if warm_up:
-            print("[INFO] Warm Up")
         # Reset Env
         if self.done:
             self.state, _ = self.env.reset()

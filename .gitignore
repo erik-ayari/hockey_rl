@@ -109,8 +109,6 @@ lightning_logs
 tb_logs
 logs
 
-*.ckpt
-
 *.out
 *.err
 

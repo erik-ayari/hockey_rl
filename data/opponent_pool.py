@@ -111,4 +111,4 @@ class OpponentPool():
             self.model_rating, self.ratings[self.opponent_type][self.opponent] = trueskill.rate_1vs1(self.model_rating, self.ratings[self.opponent_type][self.opponent], drawn=True)
     
     def get_ratings(self):
-        return self.ratings
+        return self.ratings, self.model_rating

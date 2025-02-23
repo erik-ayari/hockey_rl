@@ -175,15 +175,18 @@ class SoftActorCritic(pl.LightningModule):
         self.bootstrap_steps = model_config.get('bootstrap_steps', self.steps_per_epoch)
 
         self.resume = resume
+        self.populated = False
 
         # Warm Up Buffer
         #self.populate(warm_up=True)
 
     def on_train_epoch_start(self):
         if self.current_epoch % self.steps_per_epoch == 0:
-            self.populate(warm_up=(self.current_epoch == 0))
+            self.populate(warm_up=(self.current_epoch == 0 or (self.resume and not self.populated)))
+            self.populated = True
 
     def populate(self, warm_up=False):
+        print("Populating for the first time")
         # Reset Env
         if self.done:
             self.state, _ = self.env.reset()
@@ -482,12 +485,12 @@ class SoftActorCritic(pl.LightningModule):
             self.log("val_self-opp_sigma", np.array(opponent_sigmas)[4:].mean(), prog_bar=True)
 
     def log_ratings(self):
-        ratings = self.opponent_pool.get_ratings()
+        ratings, model_rating = self.opponent_pool.get_ratings()
         for key in ratings["basic"]:
             mu = ratings["basic"][key].mu
             sigma = ratings["basic"][key].sigma
             self.log(f"{key}_mu", mu, prog_bar=True)
-            self.log(f"{key}_sigma", sigma, prog_bar=True)
+            self.log(f"{key}_sigma", sigma)
         snapshot_mus = []
         snapshot_sigmas = []
         for key in ratings["snapshots"]:
@@ -498,7 +501,7 @@ class SoftActorCritic(pl.LightningModule):
             snapshot_mus = np.array(snapshot_mus)
             snapshot_sigmas = np.array(snapshot_sigmas)
             self.log("snapshots_mu", snapshot_mus.mean(), prog_bar=True)
-            self.log("snapshots_sigma", snapshot_sigmas.mean(), prog_bar=True)
+            self.log("snapshots_sigma", snapshot_sigmas.mean())
         
         if self.opponent_pool.foreign_agents_exist:
             foreign_mus = []
@@ -509,7 +512,10 @@ class SoftActorCritic(pl.LightningModule):
             foreign_mus = np.array(foreign_mus)
             foreign_sigmas = np.array(foreign_sigmas)
             self.log("foreign_mu", foreign_mus.mean(), prog_bar=True)
-            self.log("foreign_sigma", foreign_sigmas.mean(), prog_bar=True)
+            self.log("foreign_sigma", foreign_sigmas.mean())
+
+        self.log("model_mu", model_rating.mu, prog_bar=True)
+        self.log("model_sigma", model_rating.sigma)
 
     def validation_step(self, batch: Tuple[Tensor, Tensor], nb_batch) -> OrderedDict:
         if self.use_pool:

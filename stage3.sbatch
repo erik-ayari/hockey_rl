@@ -9,4 +9,4 @@
 #SBATCH --output=job.%J.out
 #SBATCH --mail-type=ALL
 #SBATCH --mail-user=erik.ayari@student.uni-tuebingen.de
-singularity run /home/stud402/container.sif python3 -m model.main -c configs/stage3.json --resume_from_checkpoint stage2.ckpt
+singularity run /home/stud402/container.sif python3 -m model.main -c configs/stage3.json --resume_from_checkpoint stage2.1.ckpt

@@ -32,8 +32,8 @@
             "snapshot_interval": 100000,
             "games_per_opponent": 15,
             "checkpoints_mpo": ["mpo", "mpo2", "mpo3", "mpo_old1", "mpo_old2", "mpo_old3"],
-            "checkpoints_tdmpc2": ["tdmpc2"],
-            "checkpoints_sac": ["sac_22_02"],
+            "checkpoints_tdmpc2": ["tdmpc2", "tdmpc2-old1", "tdmpc2-old2", "tdmpc2-old3"],
+            "checkpoints_sac": ["sac_22_02", "sac_22_02-earlier", "sac_22_02-earlier1"],
             "weighting": [0.1, 0.45, 0.45]
         },
         "bootstrap_steps": 100000,

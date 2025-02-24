@@ -61,14 +61,26 @@ def main():
     env, environment_type, agent_type, split_action_space = create_environment(env_config)
     
     # Initialize model with hyperparameters from config
-    model = SoftActorCritic(
-        env,
-        environment_type,
-        agent_type,
-        split_action_space,
-        config["model"],
-        resume=(args.resume_from_checkpoint != None)
-    )
+    if args.resume_from_checkpoint:
+        # Load only model weights and hyperparameters
+        model = SoftActorCritic.load_from_checkpoint(
+            args.resume_from_checkpoint,
+            env=env,
+            environment_type=environment_type,
+            agent_type=agent_type,
+            split_action_space=split_action_space,
+            model_config=config["model"],
+            resume=True
+        )
+    else:
+        model = SoftActorCritic(
+            env,
+            environment_type,
+            agent_type,
+            split_action_space,
+            config["model"],
+            resume=False
+        )
 
     # TensorBoard Logger
     logger = TensorBoardLogger(

@@ -139,6 +139,7 @@ class SoftActorCritic(pl.LightningModule):
             foreign_agents = {}
             for mpo_path in checkpoints_mpo:
                 name = mpo_path
+                print(mpo_path)
                 mpo_path = f"foreign_agents/checkpoints/{mpo_path}.pth"
                 mpo = MPODestilledAgent(mpo_path)
                 foreign_agents[name] = mpo

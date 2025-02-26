@@ -1,15 +1,8 @@
 # hockey-env
 
-This repository contains a hockey-like game environment for RL
+This repository contains a Soft Actor Critic Implementation in PyTorchLightning for the hockey-like game environment for RL
 
-## Install
-
-``python3 -m pip install git+https://github.com/martius-lab/hockey-env.git``
-
-or add the following line to your Pipfile
-
-``hockey = {editable = true, git = "https://git@github.com/martius-lab/hockey-env.git"}``
-
+It was created by Erik Ayari as part of the The_Bests_Around Team in the Competition for RL.
 
 ## HockeyEnv
 

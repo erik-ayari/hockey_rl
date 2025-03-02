@@ -4,6 +4,11 @@ This repository contains a Soft Actor Critic Implementation in PyTorchLightning 
 
 It was created by Erik Ayari as part of the The_Bests_Around Team in the Competition for RL.
 
+The program can be started via:
+``python -m model.main -c configs/config_file.json``
+
+There exist config files to train the agent in some basic environments (i.e. LunarLander, Pendulum, Half-Cheetah), to train it in the hockey environment in shooting/defense modes, to do training against a basic opponent or to train using a self-play pool / pool of other agents from the team.
+
 ## HockeyEnv
 
 ![Screenshot](assets/hockeyenv1.png)
